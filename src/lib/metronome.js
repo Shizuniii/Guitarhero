@@ -55,9 +55,10 @@ function schedule() {
   const m = metronome.get();
   const secPerTick = 60 / m.bpm / m.grid;
   while (nextTime < c.currentTime + LOOKAHEAD) {
+    // Beim Einzählen ist der Index negativ: Modulo so rechnen, dass Schlag und Unterteilung stimmen.
     const beatsTotal = Math.floor(index / m.grid);
-    const sub = index % m.grid;
-    const beat = beatsTotal % m.beatsPerBar;
+    const sub = ((index % m.grid) + m.grid) % m.grid;
+    const beat = ((beatsTotal % m.beatsPerBar) + m.beatsPerBar) % m.beatsPerBar;
     const bar = Math.floor(beatsTotal / m.beatsPerBar);
     const clickEvery = m.grid % m.clickDiv === 0 ? m.grid / m.clickDiv : m.grid;
     if (sub % clickEvery === 0) {
@@ -65,7 +66,8 @@ function schedule() {
     }
     const tick = { beat, sub, bar, index, time: nextTime };
     scheduleListeners.forEach((fn) => fn(tick));
-    const delay = Math.max(0, (nextTime - c.currentTime) * 1000);
+    // Anzeige zum Zeitpunkt, an dem der Klick zu hören ist, nicht wenn er geplant wird.
+    const delay = Math.max(0, (nextTime - c.currentTime + (c.outputLatency || 0)) * 1000);
     setTimeout(() => {
       if (!metronome.get().running) return;
       metronome.patch({ pos: tick });
@@ -76,14 +78,32 @@ function schedule() {
   }
 }
 
-export async function startMetronome() {
-  if (metronome.get().running) return;
+// `preBeats`: so viele Schläge Einzählen vor Takt 1. Liefert die Audiozeit von Takt 1, Schlag 1.
+export async function startMetronome({ preBeats = 0 } = {}) {
+  if (metronome.get().running) return null;
   const c = await resumeAudio();
-  index = 0;
+  const m = metronome.get();
+  index = -preBeats * m.grid;
   nextTime = c.currentTime + 0.08;
-  metronome.patch({ running: true });
+  const barOne = nextTime + (preBeats * 60) / m.bpm;
+  // Bis zum ersten Klick zeigt nichts einen Schlag an.
+  metronome.patch({ running: true, pos: { beat: -1, sub: 0, bar: 0, index: -1 } });
   schedule();
   timerId = setInterval(schedule, INTERVAL_MS);
+  return barOne;
+}
+
+// Audiozeit des ersten Taktanfangs, der frühestens in `seconds` kommt. Nur bei laufendem Metronom.
+export function nextBarStart(seconds) {
+  if (!metronome.get().running) return null;
+  const c = audioCtx();
+  const m = metronome.get();
+  const sec = 60 / m.bpm / m.grid;
+  const bar = m.grid * m.beatsPerBar;
+  const earliest = c.currentTime + seconds;
+  let k = index + Math.max(0, Math.ceil((earliest - nextTime) / sec - 1e-6));
+  k = Math.ceil(k / bar) * bar;
+  return nextTime + (k - index) * sec;
 }
 
 export function stopMetronome() {
@@ -93,6 +113,12 @@ export function stopMetronome() {
 }
 
 export const toggleMetronome = () => (metronome.get().running ? stopMetronome() : startMetronome());
+
+// Gesamtzahl Einzähl-Schläge: mindestens `seconds` lang und mindestens ein ganzer Takt.
+export function countInBeats(seconds) {
+  const m = metronome.get();
+  return Math.max(m.beatsPerBar, Math.ceil((seconds * m.bpm) / 60 - 1e-6));
+}
 
 function persist() {
   const { bpm, beatsPerBar, clickDiv, volume, accent, silent } = metronome.get();

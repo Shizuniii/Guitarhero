@@ -1,11 +1,11 @@
 import { html, useEffect, useRef, useState } from '../../vendor/htm-preact.js';
 import { uid, useStore } from '../lib/core.js';
 import { voicingMidi, voicingsFor } from '../lib/chords.js';
-import { metronome, onMetronomeSchedule, setMetronome, startMetronome, stopMetronome, toggleMetronome } from '../lib/metronome.js';
+import { countInBeats, metronome, nextBarStart, onMetronomeSchedule, setMetronome, startMetronome, stopMetronome, toggleMetronome } from '../lib/metronome.js';
 import { patterns, settings, updateSettings } from '../lib/state.js';
 import { muteHit, strum } from '../lib/synth.js';
 import { useTimerRecording } from '../lib/take-control.js';
-import { timer, timerEvents } from '../lib/timer.js';
+import { setCountdownSync, timer, timerEvents } from '../lib/timer.js';
 import { latency } from '../lib/analyze.js';
 import { toast } from '../lib/ui-state.js';
 import { ChordInput } from '../ui/chord.js';
@@ -93,11 +93,17 @@ export function StrumStep({ step, onConfig }) {
 
   useEffect(() => {
     const offs = [
-      timerEvents.on('countdown', () => { ticks.current = []; startMetronome(); }),
+      // Das Metronom zählt während des Countdowns ein, und der Countdown endet genau auf Schlag 1 des Musters.
+      setCountdownSync(async (seconds) => {
+        if (metronome.get().running) return nextBarStart(seconds);
+        return startMetronome({ preBeats: countInBeats(seconds) });
+      }),
+      timerEvents.on('prepare', () => { ticks.current = []; }),
       timerEvents.on('run', () => startMetronome()),
       timerEvents.on('end', () => stopMetronome()),
       timerEvents.on('stop', () => stopMetronome()),
       onMetronomeSchedule((tick) => {
+        if (tick.index < 0) return; // Einzählen: nur Klicks
         if (['countdown', 'running'].includes(timer.get().phase)) ticks.current.push({ time: tick.time, index: tick.index });
         const l = live.current;
         if (!l.playAlong || !l.pattern) return;
@@ -140,7 +146,7 @@ export function StrumStep({ step, onConfig }) {
   }
 
   if (!pattern) return null;
-  const index = running ? pos % pattern.slots.length : -1;
+  const index = running && pos >= 0 ? pos % pattern.slots.length : -1;
 
   return html`<div class="step step-strum">
     <div class="row wrap strum-head">

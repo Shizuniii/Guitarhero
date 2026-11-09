@@ -1,8 +1,8 @@
 // Ein einziger Timer für die ganze App: das Panel und die Module zeigen denselben.
-import { audioCtx, beep, resumeAudio } from './audio.js';
+import { audioCtx, audioToPerf, beep, resumeAudio } from './audio.js';
 import { createEmitter, createStore } from './core.js';
 import { settings } from './state.js';
-import { metronome } from './metronome.js';
+import { metronome, nextBarStart } from './metronome.js';
 
 export const timer = createStore({
   phase: 'idle', // idle | countdown | running | paused | finished
@@ -16,17 +16,38 @@ export const timerEvents = createEmitter();
 let tickId = null;
 let endAt = 0;
 let lastWhole = 0;
+let countdownMax = 0;
+let starting = false;
+let countdownSync = null;
+let runTimeout = null;
+
+// Ein Modul mit eigenem Takt (z. B. Strum) legt fest, wann der Countdown endet: genau auf Takt 1.
+// Die Funktion bekommt die Countdown-Sekunden und liefert eine Zeit der Audio-Uhr oder null.
+export function setCountdownSync(fn) {
+  countdownSync = fn;
+  return () => { if (countdownSync === fn) countdownSync = null; };
+}
+
+// Ohne eigenes Modul-Timing gilt: läuft das Metronom, endet der Countdown auf einem Taktanfang.
+async function countdownEnd(seconds) {
+  let at = null;
+  if (countdownSync) at = await countdownSync(seconds);
+  else at = nextBarStart(seconds);
+  return at === null || at === undefined ? null : audioToPerf(at);
+}
 
 function clear() {
   clearInterval(tickId);
   tickId = null;
+  clearTimeout(runTimeout);
+  runTimeout = null;
 }
 
 function loop() {
   const t = timer.get();
   const left = (endAt - performance.now()) / 1000;
   if (t.phase === 'countdown') {
-    const whole = Math.ceil(left);
+    const whole = Math.min(countdownMax, Math.ceil(left));
     if (whole !== lastWhole) {
       lastWhole = whole;
       if (whole > 0) {
@@ -51,6 +72,8 @@ function loop() {
 }
 
 function beginRun(seconds) {
+  clearTimeout(runTimeout);
+  runTimeout = null;
   endAt = performance.now() + seconds * 1000;
   timer.patch({ phase: 'running', remaining: seconds, count: 0 });
   timerEvents.emit('run', { seconds });
@@ -58,23 +81,34 @@ function beginRun(seconds) {
 
 export async function startTimer() {
   const t = timer.get();
-  if (t.phase === 'running' || t.phase === 'countdown') return;
+  if (starting || t.phase === 'running' || t.phase === 'countdown') return;
   if (t.phase === 'paused') return resumeTimer();
-  await resumeAudio();
-  const countdown = settings.get().countdownSeconds;
-  clear();
-  timer.patch({ remaining: t.duration });
-  timerEvents.emit('prepare', {});
-  if (countdown > 0) {
-    endAt = performance.now() + countdown * 1000;
-    lastWhole = 0;
-    timer.patch({ phase: 'countdown', count: countdown });
-    timerEvents.emit('countdown', { seconds: countdown });
-  } else {
-    beginRun(t.duration);
+  starting = true;
+  try {
+    await resumeAudio();
+    const countdown = settings.get().countdownSeconds;
+    clear();
+    timer.patch({ remaining: t.duration });
+    timerEvents.emit('prepare', {});
+    if (countdown > 0) {
+      const synced = await countdownEnd(countdown);
+      endAt = synced ?? performance.now() + countdown * 1000;
+      countdownMax = countdown;
+      lastWhole = 0;
+      timer.patch({ phase: 'countdown', count: Math.min(countdown, Math.ceil((endAt - performance.now()) / 1000)) });
+      timerEvents.emit('countdown', { seconds: countdown });
+      // Genau zum Ende umschalten, nicht erst beim nächsten Nachsehen.
+      runTimeout = setTimeout(() => {
+        if (timer.get().phase === 'countdown') beginRun(timer.get().duration);
+      }, Math.max(0, endAt - performance.now()));
+    } else {
+      beginRun(t.duration);
+    }
+    tickId = setInterval(loop, 20);
+    loop();
+  } finally {
+    starting = false;
   }
-  tickId = setInterval(loop, 50);
-  loop();
 }
 
 export function pauseTimer() {
