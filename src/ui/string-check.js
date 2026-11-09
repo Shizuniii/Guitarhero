@@ -1,7 +1,7 @@
 // Saiten-Check: Akkord halten, jede Saite einzeln zupfen, pro Saite ein Ergebnis.
 import { html, useEffect, useRef, useState } from '../../vendor/htm-preact.js';
 import { useStore } from '../lib/core.js';
-import { classifyPluck } from '../lib/analysis.js';
+import { assignPluck } from '../lib/analysis.js';
 import { chordFor } from '../lib/analyze.js';
 import { rms } from '../lib/dsp.js';
 import { acquireMic, micAnalyser, micState, releaseMic } from '../lib/mic.js';
@@ -67,16 +67,25 @@ export function StringCheck({ chord }) {
           } else if (phase === 'listen') {
             const age = now - since;
             if (age >= 110) {
-              const f = midiToFreq(target.midi);
-              reads.push(detectPitch(buf, sr, { minHz: f / 2.3, maxHz: f * 2.3 }));
+              const lo = midiToFreq(Math.min(...list.map((s) => s.midi)));
+              const hi = midiToFreq(Math.max(...list.map((s) => s.midi)));
+              reads.push(detectPitch(buf, sr, { minHz: lo / 1.3, maxHz: hi * 2.3 }));
             }
             if (age >= 330 || reads.length >= 4) {
               const good = reads.filter((r) => r.freq > 0).sort((a, b) => a.freq - b.freq);
               const pick = good[Math.floor(good.length / 2)] || { freq: 0, clarity: 0 };
               const clarity = good.length ? good.reduce((s, r) => s + r.clarity, 0) / good.length : 0;
-              const res = classifyPluck({ freq: pick.freq, clarity }, target.midi, target.openMidi);
-              setResults((r) => ({ ...r, [target.string]: res }));
-              setCurrent((c) => Math.min(c + 1, list.length));
+              const { string: hit, result } = assignPluck({ freq: pick.freq, clarity }, list, idx);
+              setResults((r) => {
+                const next = { ...r, [hit]: result };
+                // Weiter zur nächsten Saite, die noch nicht sauber geklungen hat.
+                if (hit === target.string) {
+                  let k = idx + 1;
+                  while (k < list.length && next[list[k].string]?.status === 'ok') k++;
+                  setCurrent(k);
+                }
+                return next;
+              });
               phase = 'rest';
               since = now;
             }
