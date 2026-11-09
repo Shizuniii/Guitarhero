@@ -15,6 +15,12 @@ export async function resumeAudio() {
   return c;
 }
 
+// Rechnet eine Zeit der Audio-Uhr in performance.now() um, bezogen auf den Moment, in dem man sie hört.
+export function audioToPerf(t) {
+  const c = audioCtx();
+  return performance.now() + (t - c.currentTime + (c.outputLatency || 0)) * 1000;
+}
+
 export function beep({ freq = 880, dur = 0.09, gain = 0.25, when = 0, type = 'sine' } = {}) {
   const c = audioCtx();
   const t = when || c.currentTime + 0.005;
