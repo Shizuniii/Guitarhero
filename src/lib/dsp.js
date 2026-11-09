@@ -305,3 +305,54 @@ export function highBandRatio(mag, sr, n) {
   }
   return high / (low + 1e-12);
 }
+
+// Wie deutlich ragt bei Frequenz f ein Ton aus seiner Umgebung heraus (Spitze geteilt durch Median daneben)?
+export function peakSNR(mag, sr, n, f) {
+  const hz = sr / n;
+  const k = f / hz;
+  if (k < 2 || k > mag.length - 2) return 0;
+  let peak = 0;
+  for (let i = Math.floor(k - 1); i <= Math.ceil(k + 1); i++) peak = Math.max(peak, mag[i] || 0);
+  const band = Math.max(12, Math.round(k * 0.15));
+  const vals = [];
+  for (let i = Math.max(1, Math.round(k - band)); i <= Math.min(mag.length - 1, Math.round(k + band)); i++) {
+    if (Math.abs(i - k) > 4) vals.push(mag[i]);
+  }
+  vals.sort((a, b) => a - b);
+  return peak / (vals[Math.floor(vals.length / 2)] || 1e-12);
+}
+
+// Der Korpus einer Konzertgitarre schwingt um 90–125 Hz von selbst mit. Dort ist ein Ton kein Beweis.
+const BODY = [90, 125];
+
+// Belege für einen Ton: nur Obertöne, die kein anderer klingender Ton erzeugt.
+export function evidence(mag, sr, n, midi, exclude = []) {
+  const f0 = midiToHz(midi);
+  const clash = [];
+  for (const o of exclude) for (let k = 1; k <= 8; k++) clash.push(midiToHz(o) * k);
+  const out = [];
+  for (let h = 1; h <= 6; h++) {
+    const f = f0 * h;
+    if (f > 2500) break;
+    if (f >= BODY[0] && f <= BODY[1]) continue;
+    if (clash.some((c) => Math.abs(1200 * Math.log2(c / f)) < 35)) continue;
+    out.push({ h, snr: peakSNR(mag, sr, n, f) });
+  }
+  return out;
+}
+
+// Eingestellt an echten Aufnahmen einer Konzertgitarre: gespielte Töne liegen bei 40 bis 200,
+// mitschwingende leere Saiten und Korpus bei 10 bis 30, fehlende Töne unter 5.
+export const PRESENT = 40;
+export const SOLID = 15;
+export const ABSENT = 5;
+
+// 'yes', 'no' oder null, wenn sich das nicht sicher sagen lässt.
+export function sounds(ev) {
+  if (!ev.length) return null;
+  const top = Math.max(...ev.map((e) => e.snr));
+  const solid = ev.filter((e) => e.snr >= SOLID).length;
+  if (top >= PRESENT || solid >= 2) return 'yes';
+  if (top < ABSENT) return 'no';
+  return null;
+}

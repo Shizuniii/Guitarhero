@@ -47,11 +47,11 @@ check('D mit A-Saite: erkannt', r.issues.some((i) => i.kind === 'muted-rings' &&
 
 // 7. G-Saite verstimmt (30 Cent tief), offen gespielt in C
 r = analyzeChord(take((x) => eight((t, i) => strumChord(x, mid(C), t, { seed: i + 13, cents: [0, 0, -30, 0, 0] }))), SR, C);
-check('Verstimmte G-Saite erkannt', r.issues.some((i) => i.kind === 'detuned' && i.string === 3 && i.cents < -15), kinds(r));
+check('Verstimmung wird im Akkord nicht gemeldet (dafür gibt es das Stimmgerät)', !r.issues.some((i) => i.kind === 'detuned'), kinds(r));
 
 // 8. Schnarren bei der Hälfte der Anschläge
 r = analyzeChord(take((x) => eight((t, i) => { strumChord(x, mid(C), t, { seed: i + 15 }); if (i % 2) buzz(x, t + 0.02); })), SR, C);
-check('Schnarren erkannt', r.issues.some((i) => i.kind === 'buzz'), kinds(r));
+check('Schnarren wird nicht geraten', !r.issues.some((i) => i.kind === 'buzz'), kinds(r));
 
 // 9. Stille
 r = analyzeChord(new Float32Array(SR * 3), SR, C);
@@ -61,8 +61,8 @@ check('Stille gemeldet', r.empty && r.reason === 'silent');
 const sw = take((x) => {
   for (let k = 0; k <= 10; k++) {
     const ch = k % 2 ? C : Am;
-    strumChord(x, mid(ch), 0.4 + k * 1.4, { seed: k * 2 + 1 });
-    strumChord(x, mid(ch), 0.4 + k * 1.4 + 0.6, { seed: k * 2 + 2 });
+    strumChord(x, mid(ch), 0.4 + k * 1.4, { seed: k * 2 + 1, dur: 0.6 });
+    strumChord(x, mid(ch), 0.4 + k * 1.4 + 0.6, { seed: k * 2 + 2, dur: 0.75 });
   }
 }, 17);
 r = analyzeChange(sw, SR, Am, C);

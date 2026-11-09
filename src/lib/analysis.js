@@ -1,7 +1,7 @@
 // Bewertung von Aufnahmen. Reine Funktionen: liefern Daten, die Texte entstehen in feedback.js.
 import {
-  centsOffset, decompose, detectOnsets, highBandRatio, hzToMidi, logSpectrum, magnitude, median, nextPow2,
-  noteIndex, noteTemplates, NOTE_HI, NOTE_LO, quantile, rms,
+  decompose, detectOnsets, evidence, highBandRatio, hzToMidi, logSpectrum, magnitude, median, nextPow2,
+  noteIndex, noteTemplates, NOTE_HI, NOTE_LO, quantile, rms, sounds,
 } from './dsp.js';
 
 export const STANDARD = [40, 45, 50, 55, 59, 64];
@@ -28,39 +28,55 @@ function notesAt(x, sr, t, len, set) {
 const inRange = (m) => m >= NOTE_LO && m <= NOTE_HI;
 
 // Bewertet einen Anschlag gegen den erwarteten Akkord.
-// `pre`: Notenstärken kurz vor dem Anschlag. Was nur nachklingt, zählt nicht als Fremdton.
-export function judgeStrum(h, chord, set, pre = null) {
-  const at = (m) => (inRange(m) ? h[noteIndex(m, set)] : 0);
-  const fresh = (m) => (pre && inRange(m) ? Math.max(0, at(m) - 0.7 * pre[noteIndex(m, set)]) : at(m));
+// Prüft einen Anschlag gegen den Akkord. Gemeldet wird nur, was sich an eindeutigen Obertönen belegen lässt.
+export function judgeStrum(mag, sr, n, chord) {
   const exp = chord.notes;
-  const expMidis = new Set(exp.map((e) => e.midi));
-  const pcs = new Set(exp.map((e) => e.midi % 12));
-  const bass = Math.min(...exp.map((e) => e.midi));
-  const ref = quantile(exp.map((e) => at(e.midi)), 0.75) || 1e-9;
-  const strong = [];
-  const top = Math.max(...exp.map((e) => e.midi)) + 4;
-  for (let m = NOTE_LO; m <= Math.min(NOTE_HI, top); m++) {
-    if (expMidis.has(m)) continue;
-    if (pcs.has(m % 12) && m > bass) continue;
-    if (fresh(m) >= 0.35 * ref) strong.push(m);
-  }
-  // Fällt ein Ton genau auf einen Oberton eines tieferen, klingenden Tons, lässt sich sein Fehlen nicht sicher hören.
-  const HARM = [12, 19, 24, 28, 31, 36];
-  const sounding = [...exp.filter((o) => at(o.midi) >= 0.3 * ref).map((o) => o.midi), ...strong];
-  const covered = (e) => sounding.some((m) => m < e.midi && HARM.includes(e.midi - m));
-  const harmonicOfSounding = (k) => sounding.some((m) => m < k && [...HARM, 34, 38].includes(k - m));
-  const missing = exp.filter((e) => !covered(e) && at(e.midi) < 0.12 * ref);
+  const all = exp.map((e) => e.midi);
   const issues = [];
-  const used = new Set();
-  for (const k of strong) {
-    const open = missing.find((e) => e.fret > 0 && e.openMidi === k && !used.has(e));
-    if (open) { used.add(open); issues.push({ kind: 'open', string: open.string, fret: open.fret }); continue; }
-    const mute = chord.muted.find((s) => s.openMidi === k);
-    if (mute) { issues.push({ kind: 'muted-rings', string: mute.string }); continue; }
-    const near = missing.find((e) => !used.has(e) && Math.abs(k - e.midi) <= 2);
-    if (near) { used.add(near); issues.push({ kind: 'fret', string: near.string, fret: near.fret, delta: k - near.midi }); continue; }
-    if (fresh(k) >= 0.5 * ref && !harmonicOfSounding(k)) issues.push({ kind: 'extra', midi: k });
+  const extra = [];
+  // 1. Saiten, die nicht angeschlagen werden sollen
+  for (const m of chord.muted) {
+    if (exp.some((e) => e.midi === m.openMidi)) continue;
+    if (sounds(evidence(mag, sr, n, m.openMidi, all)) === 'yes') {
+      issues.push({ kind: 'muted-rings', string: m.string });
+      extra.push(m.openMidi);
+    }
   }
+  // 2. Erwartete Töne
+  const missing = [];
+  for (const e of exp) {
+    const others = [...all.filter((m) => m !== e.midi), ...extra];
+    if (sounds(evidence(mag, sr, n, e.midi, others)) === 'no') missing.push(e);
+    else if (sounds(evidence(mag, sr, n, e.midi, others)) === null) {
+      // Lässt sich der Ton selbst nicht belegen, kann trotzdem ein Ersatzton eindeutig klingen.
+      e.unsure = true;
+    }
+  }
+  const used = new Set();
+  for (const e of exp) {
+    if (e.fret === 0 || !(missing.includes(e) || e.unsure)) continue;
+    const others = [...all.filter((x) => x !== e.midi), ...extra];
+    const cands = [];
+    if (!all.includes(e.openMidi)) cands.push({ m: e.openMidi, issue: { kind: 'open', string: e.string, fret: e.fret } });
+    for (const d of [1, -1, 2, -2]) {
+      const m = e.midi + d;
+      if (m === e.openMidi || all.includes(m) || chord.muted.some((x) => x.openMidi === m)) continue;
+      cands.push({ m, issue: { kind: 'fret', string: e.string, fret: e.fret, delta: d } });
+    }
+    // Ließ sich der erwartete Ton selbst nicht prüfen, muss der Ersatzton doppelt belegt sein.
+    const strict = !missing.includes(e);
+    let best = null;
+    for (const c of cands) {
+      const ev = evidence(mag, sr, n, c.m, others);
+      if (sounds(ev) !== 'yes') continue;
+      const top = Math.max(...ev.map((v) => v.snr));
+      if (strict && !(top >= 40 && ev.filter((v) => v.snr >= 15).length >= 2)) continue;
+      if (!best || top > best.top) best = { ...c, top };
+    }
+    if (best) { issues.push(best.issue); used.add(e); }
+  }
+  for (const e of exp) delete e.unsure;
+  if (missing.length >= Math.ceil(exp.length * 0.6) && !used.size) return null;
   for (const e of missing) if (!used.has(e)) issues.push({ kind: 'missing', string: e.string, fret: e.fret });
   return issues;
 }
@@ -86,11 +102,23 @@ function aggregate(segments, total) {
     .sort((a, b) => b.count - a.count);
 }
 
+// Ein langsamer Strum über sechs Saiten erzeugt mehrere Anschläge kurz hintereinander: die gehören zusammen.
+export function strumClusters(onsets, gap = 0.2) {
+  const out = [];
+  for (const o of onsets) {
+    const last = out[out.length - 1];
+    if (last && o.t - last.end < gap) last.end = o.t;
+    else out.push({ t: o.t, end: o.t });
+  }
+  return out;
+}
+
 function strumSegments(x, sr, onsets, duration) {
   const out = [];
-  onsets.forEach((o, i) => {
-    const next = i + 1 < onsets.length ? onsets[i + 1].t : duration;
-    const start = o.t + 0.04;
+  const groups = strumClusters(onsets);
+  groups.forEach((o, i) => {
+    const next = i + 1 < groups.length ? groups[i + 1].t : duration;
+    const start = o.end + 0.05;
     const len = Math.min(0.34, next - start - 0.02);
     if (len < 0.07) return;
     out.push({ t0: Math.max(0, o.t - 0.03), t1: next, start, len, level: rms(x, Math.round(start * sr), Math.round(len * sr)) });
@@ -100,50 +128,27 @@ function strumSegments(x, sr, onsets, duration) {
 }
 
 function evaluateStrums(x, sr, segs, chordAt, set) {
-  const tuning = new Map();
   const ratios = [];
   const results = segs.map((s) => {
     const chord = chordAt(s.start);
     if (!chord) return { ...s, chord: null, issues: [], score: null };
-    const { h, mag, n } = notesAt(x, sr, s.start, s.len, set);
-    const pre = s.start > 0.15 ? notesAt(x, sr, s.start - 0.14, 0.09, set).h : null;
-    const issues = judgeStrum(h, chord, set, pre).map((i) => ({ ...i, chord: chord.name }));
+    const { mag, n } = notesAt(x, sr, s.start, s.len, set);
+    const judged = judgeStrum(mag, sr, n, chord);
+    if (!judged) return { ...s, chord: null, issues: [], score: null };
+    const issues = judged.map((i) => ({ ...i, chord: chord.name }));
     const short = nextPow2(sr * 0.15);
     const ratio = highBandRatio(magnitude(x, Math.round((s.start - 0.01) * sr), Math.min(short, Math.round(0.14 * sr)), short), sr, short);
     ratios.push(ratio);
-    const missingStrings = new Set(issues.filter((i) => i.string !== undefined).map((i) => i.string));
-    for (const e of chord.notes) {
-      if (missingStrings.has(e.string)) continue;
-      const c = centsOffset(mag, sr, n, e.midi, chord.notes.filter((o) => o !== e).map((o) => o.midi));
-      if (c === null) continue;
-      const k = `${chord.name}:${e.string}`;
-      if (!tuning.has(k)) tuning.set(k, { chord: chord.name, string: e.string, fret: e.fret, values: [] });
-      tuning.get(k).values.push(c);
-    }
     return { ...s, chord: chord.name, issues, ratio };
   });
   const typicalRatio = quantile(ratios, 0.25);
   for (const r of results) {
     if (r.ratio === undefined) continue;
-    if (results.length >= 4 && r.ratio > typicalRatio * 1.8 && r.ratio > 0.004) r.issues.push({ kind: 'buzz', chord: r.chord });
     let score = 1;
     for (const i of r.issues) score -= PENALTY[i.kind] || 0.2;
     r.score = Math.max(0, Math.min(1, score));
   }
-  const tuningIssues = [];
-  for (const t of tuning.values()) {
-    if (t.values.length < 4) continue;
-    const c = median(t.values);
-    if (t.fret === 0 && Math.abs(c) >= 20) tuningIssues.push({ kind: 'detuned', string: t.string, cents: Math.round(c), chord: t.chord, count: t.values.length });
-    else if (t.fret > 0 && c >= 30) tuningIssues.push({ kind: 'pressure', string: t.string, fret: t.fret, cents: Math.round(c), chord: t.chord, count: t.values.length });
-  }
-  const seen = new Set();
-  const dedup = tuningIssues.filter((t) => {
-    const k = `${t.kind}:${t.string}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  const dedup = [];
   return { results, tuningIssues: dedup };
 }
 
@@ -310,7 +315,8 @@ function nearestIndex(list, t) {
 
 export function analyzeStrumPattern(x, sr, { startTime, latency = 0, ticks, slots, perBeat = 2, calibrated = false }) {
   const duration = x.length / sr;
-  const onsets = detectOnsets(x, sr, { minGap: 0.06 });
+  // Ein Strum über mehrere Saiten zählt als ein Anschlag, gemessen ab der ersten Saite.
+  const onsets = strumClusters(detectOnsets(x, sr, { minGap: 0.06 }), 0.12);
   const valid = ticks.filter((k) => k.time >= startTime + 0.05 && k.time <= startTime + duration - 0.15).sort((p, q) => p.time - q.time);
   if (valid.length < slots.length) return emptyResult('strum', x, sr);
   const slotDur = median(valid.slice(1).map((k, i) => k.time - valid[i].time));
@@ -468,6 +474,20 @@ export function analyzeCalibration(x, sr, { startTime, clicks }) {
   const m = median(offs);
   const spread = median(offs.map((o) => Math.abs(o - m)));
   return { ok: spread < 0.06, latencyMs: Math.round(m * 1000), spreadMs: Math.round(spread * 1000), found: offs.length };
+}
+
+// Saiten-Check: Welche Saite wurde gezupft? Passt der Ton zu einer anderen Saite des Akkords
+// (nochmal gezupft oder Reihenfolge vertauscht), zählt er für diese Saite.
+export function assignPluck({ freq, clarity }, strings, current) {
+  if (freq && clarity >= 0.75) {
+    const m = hzToMidi(freq);
+    // Genau passender Ton zählt für seine Saite. Oktav-Abweichungen (Messfehler) nur für die aktuelle Saite,
+    // sonst würde C4 auf der B-Saite als C3 der A-Saite gelten.
+    const match = strings.find((s) => Math.abs(m - s.midi) <= 0.4);
+    if (match) return { string: match.string, result: { status: 'ok', cents: Math.round((m - match.midi - Math.round(m - match.midi)) * 100) } };
+  }
+  const target = strings[current];
+  return { string: target.string, result: classifyPluck({ freq, clarity }, target.midi, target.openMidi) };
 }
 
 // Saiten-Check: ein einzeln gezupfter Ton gegen den erwarteten.
