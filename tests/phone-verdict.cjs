@@ -1,0 +1,24 @@
+const { chromium } = require('playwright');
+const OUT = process.argv[2];
+(async () => {
+  const b = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${OUT}/c-no-a.wav`] });
+  const ctx = await b.newContext({ viewport: { width: 390, height: 780 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'light', permissions: ['microphone'] });
+  const p = await ctx.newPage();
+  p.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await p.goto('http://127.0.0.1:8123/#/frei/chord?chord=C');
+  await p.waitForSelector('.chord-title');
+  await p.click('.timer-digits');
+  await p.fill('input[aria-label="Sekunden"]', '6');
+  await p.press('input[aria-label="Sekunden"]', 'Tab');
+  await p.click('.timer-actions .btn-primary');
+  await p.waitForSelector('.verdict-sum', { timeout: 40000 });
+  await p.locator('.take').first().scrollIntoViewIfNeeded();
+  await p.waitForTimeout(300);
+  await p.screenshot({ path: `${OUT}/m-verdict.png` });
+  console.log('overflow', await p.evaluate(() => document.querySelector('.main').scrollWidth > document.querySelector('.main').clientWidth));
+  await p.evaluate(() => { location.hash = '#/einstellungen'; });
+  await p.waitForSelector('.settings');
+  await p.locator('text=Deine Gitarre').scrollIntoViewIfNeeded();
+  await p.screenshot({ path: `${OUT}/m-settings.png` });
+  await b.close();
+})();

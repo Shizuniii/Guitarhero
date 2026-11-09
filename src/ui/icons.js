@@ -1,0 +1,46 @@
+import { html } from '../../vendor/htm-preact.js';
+
+const P = {
+  play: '<path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="none"/>',
+  pause: '<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor" stroke="none"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" stroke="none"/>',
+  record: '<circle cx="12" cy="12" r="7" fill="currentColor" stroke="none"/>',
+  start: '<path d="M6 5v14M19 5.5v13L9 12z"/>',
+  prev: '<path d="M15 5l-7 7 7 7"/>',
+  next: '<path d="M9 5l7 7-7 7"/>',
+  barPrev: '<path d="M18 5.5v13L9 12zM6 5v14"/>',
+  barNext: '<path d="M6 5.5v13L15 12zM18 5v14"/>',
+  loop: '<path d="M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/>',
+  edit: '<path d="M4 20l1-4.5L16.5 4l3.5 3.5L8.5 19zM14 6.5l3.5 3.5"/>',
+  up: '<path d="M12 19V6M6 11l6-6 6 6"/>',
+  down: '<path d="M12 5v13M6 13l6 6 6-6"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>',
+  image: '<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5.5-4.5 3.5 3 3-2.5 4 3.5"/>',
+  download: '<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',
+  upload: '<path d="M12 16V5M7 9l5-5 5 5M5 20h14"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
+  sound: '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5zM15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>',
+  folder: '<path d="M3.5 18.5v-13h6l2 2.5h9v10.5z"/>',
+  practice: '<path d="M4 7h16M4 10h16M4 13h16M4 16h16M8.5 4.5v15M14 4.5v15"/>',
+  chord: '<path d="M6 4h12M6 8h12M6 12h12M6 16h12M6 4v16M10 4v16M14 4v16M18 4v16"/><circle cx="10" cy="10" r="2" fill="currentColor"/><circle cx="14" cy="14" r="2" fill="currentColor"/>',
+  strum: '<path d="M8 19V5M4 9l4-4 4 4M16 5v14M12 15l4 4 4-4"/>',
+  riff: '<path d="M3 7h18M3 11h18M3 15h18"/><circle cx="8" cy="11" r="2.3" fill="currentColor"/><circle cx="16" cy="15" r="2.3" fill="currentColor"/>',
+  song: '<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>',
+  recordings: '<path d="M3 12h2M7 8v8M11 4v16M15 7v10M19 10v4M22 12h-1"/>',
+  progress: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',
+  timer: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2M9.5 3h5"/>',
+  metronome: '<path d="M8.5 3.5h7L20 21H4zM12 16l5-9.5M7 16h10"/>',
+  tuner: '<path d="M4 17a9 9 0 0 1 16 0M12 17l4-7"/><circle cx="12" cy="17" r="1.5" fill="currentColor"/>',
+  list: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  keep: '<path d="M6 3.5h12V21l-6-4.5L6 21z"/>',
+};
+
+export function Icon({ name, size = 22 }) {
+  return html`<svg class="icon" width=${size} height=${size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" dangerouslySetInnerHTML=${{ __html: P[name] || '' }}></svg>`;
+}

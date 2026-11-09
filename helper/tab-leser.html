@@ -1,0 +1,365 @@
+<title>Guitarhero Tab-Leser</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Big+Shoulders+Display:wght@700;800&display=swap">
+<style>
+/* Layout: links der Screenshot, rechts das Ergebnis. Palisander dunkel, Ahorn hell, wie in Guitarhero. */
+:root {
+  color-scheme: dark;
+  --wood: #2a161d; --deep: #1f0f15; --raise: #38202a; --ink: #f4eee6; --soft: #cdbdba;
+  --line: #5c414c; --accent: #79dcd3; --on-ink: #2a161d; --warn: #f2c869; --good: #8fdc98;
+  --abalone: conic-gradient(from 200deg, #8be8d8, #7fb4ff, #c79bff, #ffa8cb, #ffdca3, #9ef0c6, #8be8d8);
+  --display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+  --ui: 'Atkinson Hyperlegible Next', 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --wood: #f0dfbc; --deep: #e6d0a4; --raise: #f7ebd1; --ink: #2a161d; --soft: #5e4650;
+    --line: #a58a68; --accent: #0a6660; --on-ink: #f7ebd1; --warn: #8a5a00; --good: #1e6b33;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --wood: #f0dfbc; --deep: #e6d0a4; --raise: #f7ebd1; --ink: #2a161d; --soft: #5e4650;
+  --line: #a58a68; --accent: #0a6660; --on-ink: #f7ebd1; --warn: #8a5a00; --good: #1e6b33;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--wood); color: var(--ink); font: 400 17px/1.5 var(--ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 44px;
+}
+.wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+header { display: flex; flex-direction: column; gap: 6px; }
+h1 { display: flex; align-items: center; gap: 12px; margin: 0; font: 800 clamp(38px, 6vw, 56px)/1 var(--display); text-wrap: balance; }
+h1 i { width: 22px; height: 22px; border-radius: 50%; background: var(--abalone); flex: none; }
+h2 { margin: 0; font: 700 26px/1.1 var(--display); }
+p { margin: 0; max-width: 64ch; }
+.soft { color: var(--soft); }
+.small { font-size: 15px; }
+.grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; align-items: start; }
+.col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 170px; padding: 18px;
+  border: 2px dashed var(--line); border-radius: 7px; background: var(--deep); text-align: center; cursor: pointer;
+}
+.drop.over, .drop:hover { border-color: var(--accent); }
+.drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drop strong { font-size: 18px; }
+.drop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.thumbs { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.thumbs li { display: flex; gap: 10px; align-items: center; }
+.thumbs img { width: 120px; max-height: 90px; object-fit: cover; object-position: top left; border: 1px solid var(--line); border-radius: 4px; }
+.thumbs span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 15px; }
+.fields { display: flex; flex-wrap: wrap; gap: 12px; }
+label.field { display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 600; color: var(--soft); flex: 1 1 130px; min-width: 0; }
+select, input[type="number"], input[type="text"] {
+  min-height: 42px; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--deep); color: var(--ink); font: 400 16.5px var(--ui);
+}
+button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 16px;
+  border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--ink); font: 600 16px var(--ui); cursor: pointer;
+}
+button:hover:not(:disabled) { background: var(--raise); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--ink); border-color: var(--ink); color: var(--on-ink); min-height: 52px; font-size: 18px; }
+button.primary:hover:not(:disabled) { background: var(--ink); opacity: 0.88; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.notice { padding: 10px 12px; border-left: 3px solid var(--warn); background: var(--raise); }
+.tab-out { margin: 0; padding: 12px; overflow-x: auto; background: var(--deep); border-radius: 4px; font: 500 15px/1.35 var(--mono); }
+.tag { display: inline-block; padding: 1px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 14px; color: var(--soft); }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; }
+.meta div { display: flex; gap: 6px; }
+.meta dt { color: var(--soft); }
+.meta dd { margin: 0; font-weight: 600; }
+.unsure { margin: 0; padding-left: 20px; }
+textarea { width: 100%; min-height: 96px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--deep); color: var(--ink); font: 400 13.5px/1.35 var(--mono); }
+.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+.thinking { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.thinking i { width: 14px; height: 14px; border-radius: 50%; background: var(--abalone); }
+@media (prefers-reduced-motion: no-preference) { .thinking i { animation: spin 1.4s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 780px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><i aria-hidden="true"></i>Guitarhero Tab-Leser</h1>
+    <p class="soft">Lade einen Screenshot von Gitarren-Tabs oder Noten hoch. Claude liest ihn aus, und du fügst das Ergebnis in Guitarhero ein.</p>
+  </header>
+
+  <p class="notice" id="unavailable" hidden>Die Erkennung läuft nur, wenn du diese Seite in Claude öffnest.</p>
+
+  <div class="grid">
+    <section class="col" aria-label="Screenshot">
+      <label class="drop" id="drop">
+        <input id="file" type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif">
+        <strong>Screenshot wählen oder hierher ziehen</strong>
+        <span class="soft small">Einfügen mit Strg+V geht auch</span>
+      </label>
+      <ul class="thumbs" id="thumbs"></ul>
+      <p class="soft small">Am genauesten wird es mit zwei bis vier Tab-Zeilen pro Bild. Lange Songs lädst du in mehreren Bildern hoch, in der richtigen Reihenfolge.</p>
+      <div class="fields">
+        <label class="field">Taktart
+          <select id="ts"><option value="">Erkennen lassen</option><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>12/8</option></select>
+        </label>
+        <label class="field">Tempo in BPM
+          <input id="tempo" type="number" min="20" max="320" placeholder="Erkennen lassen">
+        </label>
+      </div>
+      <label class="field">Titel, falls bekannt
+        <input id="title" type="text" autocomplete="off">
+      </label>
+      <div class="row">
+        <button class="primary" id="run" type="button" disabled>Tabs erkennen</button>
+        <button id="stop" type="button" hidden>Abbrechen</button>
+      </div>
+      <p class="thinking" id="thinking" role="status" hidden><i aria-hidden="true"></i>Claude liest die Tabs, das dauert meist ein bis zwei Minuten</p>
+      <p class="notice" id="error" role="alert" hidden></p>
+    </section>
+
+    <section class="col" aria-label="Ergebnis">
+      <div class="row"><h2 id="resultTitle">So sieht das Ergebnis aus</h2><span class="tag" id="exampleTag">Beispiel</span></div>
+      <dl class="meta" id="meta"></dl>
+      <pre class="tab-out" id="preview" aria-label="Erkannte Tabs"></pre>
+      <div id="unsureBox" class="col" hidden>
+        <h2>Bitte prüfen</h2>
+        <ul class="unsure" id="unsure"></ul>
+      </div>
+      <div id="copyBox" class="col" hidden>
+        <button class="primary" id="copy" type="button">Ergebnis kopieren</button>
+        <ol class="steps">
+          <li>Öffne in Guitarhero einen Riff oder Song.</li>
+          <li>Wähle „Screenshot per KI“ und füge das Ergebnis ein.</li>
+          <li>Prüfe die Noten im Editor und höre sie dir an.</li>
+        </ol>
+        <label class="field">Ergebnis als Text
+          <textarea id="json" readonly></textarea>
+        </label>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const EXAMPLE = {
+  title: 'Beispiel-Riff', tempo: 96, ts: [4, 4],
+  bars: [
+    { beats: [{ d: 8, notes: [{ s: 5, f: 0 }] }, { d: 8, notes: [{ s: 5, f: 3 }] }, { d: 8, notes: [{ s: 4, f: 2 }] }, { d: 8, notes: [{ s: 5, f: 3 }] }, { d: 8, notes: [{ s: 4, f: 2 }] }, { d: 8, notes: [{ s: 5, f: 3 }] }, { d: 4, notes: [{ s: 5, f: 0 }] }] },
+    { beats: [{ d: 8, notes: [{ s: 5, f: 0 }] }, { d: 8, notes: [{ s: 5, f: 3 }] }, { d: 8, notes: [{ s: 5, f: 5, fx: { h: true } }] }, { d: 8, notes: [{ s: 5, f: 7 }] }, { d: 2, notes: [] }] },
+  ],
+};
+
+let files = [];
+let sample = null;
+let limits = null;
+let controller = null;
+
+function buildPrompt() {
+  const ts = $('ts').value;
+  const tempo = $('tempo').value;
+  const title = $('title').value.trim();
+  return `Du liest Gitarrennotation aus den angehängten Bildern und gibst sie als JSON zurück. Die Bilder gehören in der gegebenen Reihenfolge zu einem Stück.
+
+Antworte nur mit einem JSON-Objekt in genau dieser Form:
+{"title":"","artist":"","tempo":90,"ts":[4,4],"bars":[{"beats":[{"d":8,"dot":false,"notes":[{"s":6,"f":3,"fx":{"h":true}}]}]}],"uncertain":["Takt 3: ..."]}
+
+Regeln:
+- "s" ist die Saite: 1 ist die hohe e-Saite, 6 die tiefe E-Saite. "f" ist der Bund, 0 ist leer.
+- "d" ist der Notenwert: 1, 2, 4, 8, 16 oder 32. "dot": true heißt punktiert.
+- Eine Pause ist ein Beat mit leerem "notes". Ein Akkord ist ein Beat mit mehreren Noten.
+- Jeder Takt muss die Taktart genau füllen. Taktstriche im Bild ergeben die Takte.
+- "fx" ist optional und kennt nur: "h" (Hammer-on oder Pull-off), "sl" (Slide), "b" (Bend), "v" (Vibrato), "pm" (Palm Mute), "x" (gedämpfte Note).
+- Wiederholungen im Bild wie "x4" oder Wiederholungszeichen schreibst du vollständig aus.
+- Sind Notenhälse oder Rhythmuszeichen zu sehen, übernimm den Rhythmus daraus. Fehlen sie, schätze ihn aus den Abständen und nenne das in "uncertain".
+- Zeigt das Bild nur Noten ohne Tabs, wähle die einfachste Griffweise in den unteren Bünden und nenne das in "uncertain".
+- Trage jede Stelle, die du nicht sicher lesen kannst, mit Taktnummer in "uncertain" ein. Rate nicht still.
+- Erfinde nichts dazu, was nicht im Bild steht.
+${ts ? `- Die Taktart ist ${ts}.` : '- Erkenne die Taktart aus dem Bild, sonst nimm 4/4.'}
+${tempo ? `- Das Tempo ist ${tempo} BPM.` : '- Nimm das Tempo aus dem Bild, sonst 90.'}
+${title ? `- Der Titel ist: ${title}.` : '- Nimm den Titel aus dem Bild, falls einer dasteht, sonst lasse ihn leer.'}`;
+}
+
+const LABELS = ['e', 'B', 'G', 'D', 'A', 'E'];
+
+function asciiTab(data) {
+  const rows = [[], [], [], [], [], []];
+  const perLine = 2;
+  const out = [];
+  data.bars.forEach((bar, i) => {
+    const cols = (bar.beats || []).map((b) => {
+      const width = Math.max(2, Math.round(16 / (b.d || 8)) * 2) + (b.dot ? 1 : 0);
+      const texts = [1, 2, 3, 4, 5, 6].map((s) => {
+        const n = (b.notes || []).find((x) => Number(x.s) === s);
+        if (!n) return '';
+        const mark = n.fx?.h ? 'h' : n.fx?.sl ? '/' : n.fx?.b ? 'b' : n.fx?.v ? '~' : '';
+        return (n.fx?.x ? 'x' : String(n.f)) + mark;
+      });
+      const w = Math.max(width, ...texts.map((t) => t.length + 1));
+      return texts.map((t) => t.padEnd(w, '-'));
+    });
+    rows.forEach((r, s) => r.push(cols.map((c) => c[s]).join('')));
+    if ((i + 1) % perLine === 0 || i === data.bars.length - 1) {
+      const lines = rows.map((r, s) => `${LABELS[s]}|-${r.join('|-')}|`);
+      out.push(lines.join('\n'));
+      rows.forEach((r) => { r.length = 0; });
+    }
+  });
+  return out.join('\n\n');
+}
+
+function barProblems(data) {
+  const ts = data.ts || [4, 4];
+  const want = (ts[0] * 3840) / ts[1];
+  const bad = [];
+  data.bars.forEach((bar, i) => {
+    const used = (bar.beats || []).reduce((n, b) => n + (3840 / (b.d || 8)) * (b.dot ? 1.5 : 1), 0);
+    if (Math.abs(used - want) > 1) bad.push(`Takt ${i + 1}: Die Notenwerte füllen den Takt nicht genau.`);
+  });
+  return bad;
+}
+
+function setMeta(data) {
+  const meta = $('meta');
+  meta.replaceChildren();
+  const add = (k, v) => {
+    if (!v) return;
+    const d = document.createElement('div');
+    const dt = document.createElement('dt');
+    const dd = document.createElement('dd');
+    dt.textContent = k;
+    dd.textContent = v;
+    d.append(dt, dd);
+    meta.append(d);
+  };
+  add('Titel', data.title);
+  add('Takte', String(data.bars.length));
+  add('Taktart', (data.ts || [4, 4]).join('/'));
+  add('Tempo', data.tempo ? `${data.tempo} BPM` : '');
+}
+
+function showResult(data) {
+  $('resultTitle').textContent = 'Erkannte Tabs';
+  $('exampleTag').hidden = true;
+  setMeta(data);
+  $('preview').textContent = asciiTab(data);
+  const unsure = [...(Array.isArray(data.uncertain) ? data.uncertain : []), ...barProblems(data)];
+  data.uncertain = unsure;
+  $('unsure').replaceChildren(...unsure.map((u) => {
+    const li = document.createElement('li');
+    li.textContent = u;
+    return li;
+  }));
+  $('unsureBox').hidden = !unsure.length;
+  $('json').value = JSON.stringify(data);
+  $('copyBox').hidden = false;
+}
+
+function addFiles(list) {
+  const types = limits?.images?.mediaTypes || ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+  const max = limits?.images?.maxCount || 8;
+  const added = [...list].filter((f) => types.includes(f.type));
+  if (list.length && !added.length) showError('Das geht nur mit PNG, JPEG, WebP oder GIF.');
+  files = [...files, ...added].slice(0, max);
+  renderThumbs();
+}
+
+function renderThumbs() {
+  $('thumbs').replaceChildren(...files.map((f, i) => {
+    const li = document.createElement('li');
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    img.alt = `Bild ${i + 1}`;
+    const name = document.createElement('span');
+    name.textContent = f.name || `Bild ${i + 1}`;
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = 'Entfernen';
+    del.onclick = () => { files.splice(i, 1); renderThumbs(); };
+    li.append(img, name, del);
+    return li;
+  }));
+  $('run').disabled = !files.length || !sample;
+}
+
+function showError(text) {
+  $('error').textContent = text;
+  $('error').hidden = !text;
+}
+
+const MESSAGES = {
+  not_granted: 'Die Seite darf Claude nicht nutzen. Erlaube es über das Berechtigungen-Menü dieser Seite und lade sie neu.',
+  rate_limited: 'Dein Claude-Kontingent oder die Anfragen pro Minute sind gerade ausgeschöpft. Versuche es später noch einmal.',
+  image_rejected: 'Dieses Bild lässt sich nicht lesen. Nimm ein anderes Bild als PNG oder JPEG.',
+  images_unavailable: 'In dieser Ansicht lassen sich keine Bilder an Claude senden. Öffne die Seite direkt in Claude.',
+  invalid_json: 'Das Ergebnis war unvollständig. Versuche es noch einmal, am besten mit weniger Zeilen pro Bild.',
+  session_expired: 'Du bist nicht mehr angemeldet. Melde dich neu an und versuche es noch einmal.',
+  refused: 'Claude hat dieses Bild nicht verarbeitet. Nimm einen Ausschnitt, der nur die Tabs zeigt.',
+};
+
+async function run() {
+  showError('');
+  controller = new AbortController();
+  $('run').disabled = true;
+  $('stop').hidden = false;
+  $('thinking').hidden = false;
+  try {
+    const data = await sample.json(buildPrompt(), { images: files, modelTier: 'complex', signal: controller.signal, cache: false });
+    if (!data || !Array.isArray(data.bars) || !data.bars.length) {
+      showError('Ich finde in diesem Bild keine Tabs oder Noten. Nimm einen Ausschnitt, der nur die Noten zeigt.');
+    } else {
+      showResult(data);
+    }
+  } catch (e) {
+    if (e?.code !== 'cancelled') showError(MESSAGES[e?.code] || 'Claude ist gerade nicht erreichbar. Versuche es gleich noch einmal.');
+  } finally {
+    $('run').disabled = !files.length;
+    $('stop').hidden = true;
+    $('thinking').hidden = true;
+  }
+}
+
+$('file').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+$('run').addEventListener('click', run);
+$('stop').addEventListener('click', () => controller?.abort());
+$('copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('json').value);
+    $('copy').textContent = 'Kopiert';
+    setTimeout(() => { $('copy').textContent = 'Ergebnis kopieren'; }, 2000);
+  } catch {
+    $('json').focus();
+    $('json').select();
+    showError('Kopieren ging nicht automatisch. Der Text ist markiert, kopiere ihn mit Strg+C.');
+  }
+});
+const drop = $('drop');
+['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
+window.addEventListener('paste', (e) => addFiles([...(e.clipboardData?.files || [])]));
+
+setMeta(EXAMPLE);
+$('preview').textContent = asciiTab(EXAMPLE);
+
+(async () => {
+  try {
+    sample = window.claude ? await window.claude.use('sample') : null;
+    if (sample) limits = await sample.limits().catch(() => null);
+  } catch {
+    sample = null;
+  }
+  if (!sample || (limits && !limits.images)) {
+    sample = null;
+    $('unavailable').hidden = false;
+  }
+  renderThumbs();
+})();
+</script>

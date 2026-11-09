@@ -1,0 +1,24 @@
+@font-face {
+  font-family: 'Big Shoulders';
+  font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url('../fonts/big-shoulders-display-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: 'Big Shoulders';
+  font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url('../fonts/big-shoulders-display-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0100-02BA, U+1E00-1EFF, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Atkinson Next';
+  font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url('../fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: 'Atkinson Next';
+  font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url('../fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0100-02BA, U+1E00-1EFF, U+2C60-2C7F, U+A720-A7FF;
+}
