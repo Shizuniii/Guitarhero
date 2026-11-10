@@ -1,6 +1,6 @@
 // Eigener Tab-Editor: Bünde tippen, Notenwerte wählen, Effekte setzen.
 import { html, useEffect, useRef, useState } from '../../vendor/htm-preact.js';
-import { barFill, durationTicks, emptyBar } from '../lib/tabformat.js';
+import { barFill, durationTicks, emptyBar, TUPLET_NAMES } from '../lib/tabformat.js';
 import { Button, Field, Stepper } from './common.js';
 import { stringNames } from './chord.js';
 
@@ -19,15 +19,58 @@ const FILL_STEPS = [
   [3840, 1, false], [2880, 2, true], [1920, 2, false], [1440, 4, true], [960, 4, false], [720, 8, true], [480, 8, false], [360, 16, true], [240, 16, false], [120, 32, false],
 ];
 
+// Pausen in Triolen-Werten, für Lücken, die normale Notenwerte nicht genau füllen.
+const TRIPLET_STEPS = [[2560, 1], [1280, 2], [640, 4], [320, 8], [160, 16], [80, 32]];
+
 function restsFor(ticks) {
   const out = [];
-  let left = ticks;
+  let left = Math.round(ticks);
+  if (left % 120 !== 0 && left % 80 === 0) {
+    while (left >= 80) {
+      const [size, d] = TRIPLET_STEPS.find(([s]) => s <= left);
+      out.push({ d, t: 3, notes: [] });
+      left -= size;
+    }
+    return out;
+  }
   while (left >= 120) {
     const [size, d, dot] = FILL_STEPS.find(([s]) => s <= left);
     out.push({ d, ...(dot ? { dot: true } : {}), notes: [] });
     left -= size;
   }
+  while (left >= 80) {
+    const [size, d] = TRIPLET_STEPS.find(([s]) => s <= left);
+    out.push({ d, t: 3, notes: [] });
+    left -= size;
+  }
   return out;
+}
+
+// Gleicht eine Längenänderung hinter Spalte i aus: kürzer heißt Pausen einfügen, länger heißt folgende Pausen verbrauchen.
+function fitAfter(beats, i, delta) {
+  let left = delta;
+  if (left > 0) {
+    beats.splice(i + 1, 0, ...restsFor(left));
+    return;
+  }
+  while (left < 0 && beats[i + 1] && !beats[i + 1].notes.length) {
+    left += durationTicks(beats[i + 1]);
+    beats.splice(i + 1, 1);
+  }
+  if (left > 0) beats.splice(i + 1, 0, ...restsFor(left));
+}
+
+// Die N-tole, zu der Spalte i gehört: aufeinanderfolgende Spalten mit gleichem t und Notenwert, in Gruppen zu t.
+function tupletGroup(beats, i) {
+  const b = beats[i];
+  if (!b?.t) return null;
+  const same = (x) => x && x.t === b.t && x.d === b.d;
+  let start = i;
+  while (same(beats[start - 1])) start -= 1;
+  const from = start + Math.floor((i - start) / b.t) * b.t;
+  let to = from;
+  while (to < from + b.t && same(beats[to])) to += 1;
+  return [from, to];
 }
 
 function fretText(n) {
@@ -92,17 +135,32 @@ export function TabEditor({ model, onChange }) {
       const before = durationTicks(b);
       b.d = d;
       if (dot) b.dot = true; else delete b.dot;
-      let delta = before - durationTicks(b);
-      if (delta > 0) {
-        beats.splice(cur.beat + 1, 0, ...restsFor(delta));
-      } else {
-        // Länger geworden: folgende Pausen dafür verbrauchen.
-        while (delta < 0 && beats[cur.beat + 1] && !beats[cur.beat + 1].notes.length) {
-          delta += durationTicks(beats[cur.beat + 1]);
-          beats.splice(cur.beat + 1, 1);
-        }
-        if (delta > 0) beats.splice(cur.beat + 1, 0, ...restsFor(delta));
+      fitAfter(beats, cur.beat, before - durationTicks(b));
+    });
+  }
+
+  // Triole an: Die Spalte wird zur ersten von drei Triolen-Noten mit gleichem Notenwert.
+  // Triole aus: Die Gruppe wird wieder zu normalen Noten.
+  function toggleTuplet() {
+    if (!beat) return;
+    commit((m) => {
+      const beats = m.bars[cur.bar].beats;
+      const group = tupletGroup(beats, cur.beat);
+      if (group) {
+        const [from, to] = group;
+        const before = beats.slice(from, to).reduce((n, x) => n + durationTicks(x), 0);
+        for (let k = from; k < to; k++) delete beats[k].t;
+        const after = beats.slice(from, to).reduce((n, x) => n + durationTicks(x), 0);
+        fitAfter(beats, to - 1, before - after);
+        return;
       }
+      const b = beats[cur.beat];
+      const before = durationTicks(b);
+      delete b.dot;
+      b.t = 3;
+      beats.splice(cur.beat + 1, 0, { d: b.d, t: 3, notes: [] }, { d: b.d, t: 3, notes: [] });
+      const after = durationTicks(b) * 3;
+      fitAfter(beats, cur.beat + 2, before - after);
     });
   }
 
@@ -154,6 +212,7 @@ export function TabEditor({ model, onChange }) {
     else if (k === 'm') toggleFx('pm');
     else if (k === 'x') { if (!note) setFret(0); setTimeout(() => toggleFx('x')); }
     else if (k === '.') applyDuration(beat.d, !beat.dot);
+    else if (k === 't') toggleTuplet();
     else return;
     e.preventDefault();
     e.stopPropagation();
@@ -181,6 +240,7 @@ export function TabEditor({ model, onChange }) {
       <div class="row wrap">
         ${DURS.map((x) => html`<${Button} size="sm" variant=${beat?.d === x.d ? 'on' : 'plain'} onClick=${() => applyDuration(x.d, Boolean(beat?.dot))}>${x.label}<//>`)}
         <${Button} size="sm" variant=${beat?.dot ? 'on' : 'plain'} onClick=${() => applyDuration(beat.d, !beat.dot)}>Punktiert<//>
+        <${Button} size="sm" variant=${beat?.t ? 'on' : 'plain'} title="Drei Noten in der Zeit von zwei" onClick=${toggleTuplet}>${beat?.t ? `${TUPLET_NAMES[beat.t]} aufheben` : 'Triole'}<//>
       </div>
       <div class="row wrap">
         ${FX.map((x) => html`<${Button} size="sm" title=${x.label} disabled=${!note} variant=${note?.fx?.[x.key] ? 'on' : 'plain'} onClick=${() => toggleFx(x.key)}>${x.label}<//>`)}
@@ -214,12 +274,12 @@ export function TabEditor({ model, onChange }) {
                   aria-label=${`Takt ${bi + 1}, Spalte ${ci + 1}, ${stringLabels[s - 1]}-Saite${n ? `, Bund ${n.f}` : ''}`}
                   onClick=${() => pick(bi, ci, s)}>${fretText(n)}</button>`;
               })}
-              <span class="tabed-dur">1/${col.d}${col.dot ? '.' : ''}</span>
+              <span class="tabed-dur" title=${col.t ? TUPLET_NAMES[col.t] : undefined}>1/${col.d}${col.dot ? '.' : ''}${col.t ? html`<sup>${col.t}</sup>` : ''}</span>
             </div>`)}
           </div>
         </div>`;
       })}
     </div>
-    <p class="muted small">Zahlen setzen den Bund, Pfeiltasten bewegen die Markierung, Leertaste geht zur nächsten Spalte, Enter fügt einen Takt an. h, s, b, v, m und x setzen Effekte.</p>
+    <p class="muted small">Zahlen setzen den Bund, Pfeiltasten bewegen die Markierung, Leertaste geht zur nächsten Spalte, Enter fügt einen Takt an. h, s, b, v, m und x setzen Effekte, t macht eine Triole.</p>
   </div>`;
 }
