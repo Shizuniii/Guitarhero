@@ -216,6 +216,6 @@ export function SettingsPage({ install }) {
         <tbody>${KEYS.map(([k, v]) => html`<tr><td><kbd>${k}</kbd></td><td>${v}</td></tr>`)}</tbody>
       </table>
     </section>
-    <p class="muted small">Guitarhero ${APP_VERSION}. Mit alphaTab (MPL-2.0), Sonivox-Soundfont, chords-db (MIT), Preact und htm.</p>
+    <p class="muted small">Guitarhero ${APP_VERSION}. Mit alphaTab (MPL-2.0), Gitarrenklang aus GeneralUser GS von S. Christian Collins, Sonivox-Soundfont, chords-db (MIT), Preact und htm.</p>
   </div>`;
 }

@@ -1,5 +1,5 @@
 // Macht Guitarhero offline nutzbar. Wird von tools/build-sw.mjs erzeugt.
-const VERSION = 'guitarhero-fd24601926';
+const VERSION = 'guitarhero-b79fa8b9af';
 const FILES = [
   "./",
   "css/app.css",
@@ -71,7 +71,7 @@ const FILES = [
   "vendor/alphatab/alphaTab.min.js",
   "vendor/alphatab/font/Bravura.woff",
   "vendor/alphatab/font/Bravura.woff2",
-  "vendor/alphatab/soundfont/sonivox.sf2",
+  "vendor/alphatab/soundfont/guitarhero.sf2",
   "vendor/htm-preact.js"
 ];
 
