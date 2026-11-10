@@ -1,7 +1,7 @@
 // Griffbild, Tab-Spalte und Akkord-Eingabe.
-import { html, useEffect, useMemo, useState } from '../../vendor/htm-preact.js';
+import { html, useEffect, useMemo, useRef, useState } from '../../vendor/htm-preact.js';
 import { useStore } from '../lib/core.js';
-import { absoluteFrets, allChordIds, displayChordName, fromInput, normalizeChordName, parseChordName, voicingMidi, voicingsFor } from '../lib/chords.js';
+import { absoluteFrets, displayChordName, fromInput, normalizeChordName, parseChordName, searchChords, voicingMidi, voicingsFor } from '../lib/chords.js';
 import { customChords, settings } from '../lib/state.js';
 import { previewChord } from '../lib/synth.js';
 import { Button } from './common.js';
@@ -66,29 +66,83 @@ export function SoundButton({ voicing, size }) {
   return html`<${Button} icon="sound" size=${size} onClick=${() => previewChord(voicingMidi(voicing))}>Anhören<//>`;
 }
 
+// Eingabefeld mit eigener Vorschlagsliste. Die Liste des Browsers lässt sich nicht sortieren
+// und zeigt bei "A" zuerst alles, was irgendwo ein a enthält.
 export function ChordInput({ value, onChange, label = 'Akkord', id }) {
-  const names = useStore(customChords.store) && allChordIds().map(displayChordName);
+  useStore(customChords.store);
   useStore(settings, (s) => s.noteNames);
   const [text, setText] = useState(value ? displayChordName(value) : '');
-  useEffect(() => setText(value ? displayChordName(value) : ''), [value]);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  // Nur von außen geänderte Werte ins Feld schreiben. Sonst überschreibt beim schnellen Tippen
+  // der gerade erkannte Akkord ("D") die weiteren Buchstaben ("Dsu").
+  const emitted = useRef(value);
+  const emit = (v) => { emitted.current = v; onChange(v); };
+  useEffect(() => {
+    if (value !== emitted.current) setText(value ? displayChordName(value) : '');
+    emitted.current = value;
+  }, [value]);
   const listId = useMemo(() => `chords-${id || Math.random().toString(36).slice(2)}`, [id]);
+  const hits = open && text.trim() ? searchChords(fromInput(text), 6) : [];
+  // Steht schon ein vollständiger Akkord im Feld, bleibt die Liste zu, damit sie nichts verdeckt.
+  // Pfeil nach unten öffnet sie trotzdem.
+  const exact = hits[0] && displayChordName(hits[0]).toLowerCase() === text.trim().toLowerCase();
+  const shown = open === 'forced' || (open && !exact) ? hits : [];
+
+  const pick = (name) => {
+    setText(displayChordName(name));
+    setOpen(false);
+    setActive(-1);
+    emit(parseChordName(name) ? normalizeChordName(name) : name);
+  };
   const commit = () => {
+    setOpen(false);
+    setActive(-1);
     const v = fromInput(text);
     if (!v) return;
-    onChange(voicingsFor(v).length ? normalizeChordName(v) : v);
+    const known = voicingsFor(v).length > 0;
+    if (known && parseChordName(v)) setText(displayChordName(normalizeChordName(v)));
+    emit(known ? normalizeChordName(v) : v);
+  };
+  const onKeyDown = (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!shown.length) { setOpen('forced'); setActive(0); return; }
+      const n = shown.length;
+      if (n) setActive((a) => (e.key === 'ArrowDown' ? (a + 1) % n : (a <= 0 ? n - 1 : a - 1)));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (shown.length && active >= 0) pick(shown[active]);
+      else commit();
+    } else if (e.key === 'Escape' && shown.length) {
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
+      setActive(-1);
+    }
   };
   const unknown = text.trim() && !voicingsFor(fromInput(text)).length;
   return html`<label class="field chord-input">
     <span class="field-label">${label}</span>
-    <input type="text" list=${listId} value=${text} placeholder="zum Beispiel Am7" autocomplete="off" spellcheck="false"
-      onInput=${(e) => {
-        const v = e.currentTarget.value;
-        setText(v);
-        const id = fromInput(v);
-        if (voicingsFor(id).length && parseChordName(id)) onChange(normalizeChordName(id));
-      }}
-      onBlur=${commit} onKeyDown=${(e) => e.key === 'Enter' && commit()}/>
-    <datalist id=${listId}>${names.slice(0, 700).map((n) => html`<option value=${n}/>`)}</datalist>
+    <div class="combo">
+      <input type="text" value=${text} placeholder="zum Beispiel Am7" autocomplete="off" spellcheck="false"
+        role="combobox" aria-autocomplete="list" aria-expanded=${shown.length > 0} aria-controls=${listId}
+        aria-activedescendant=${active >= 0 && shown[active] ? `${listId}-${active}` : undefined}
+        onInput=${(e) => {
+          const v = e.currentTarget.value;
+          setText(v);
+          setOpen(true);
+          setActive(-1);
+          const name = fromInput(v);
+          if (voicingsFor(name).length && parseChordName(name)) emit(normalizeChordName(name));
+        }}
+        onBlur=${commit} onKeyDown=${onKeyDown}/>
+      ${shown.length > 0 && html`<ul class="combo-list" id=${listId} role="listbox" aria-label="Vorschläge">
+        ${shown.map((n, i) => html`<li key=${n} id=${`${listId}-${i}`} role="option" aria-selected=${i === active}
+          class=${i === active ? 'active' : ''}
+          onMouseDown=${(e) => { e.preventDefault(); pick(n); }}>${displayChordName(n)}</li>`)}
+      </ul>`}
+    </div>
     ${unknown && html`<span class="field-hint warn">Diesen Akkord kenne ich nicht. Unter Akkorde kannst du einen eigenen Griff anlegen.</span>`}
   </label>`;
 }

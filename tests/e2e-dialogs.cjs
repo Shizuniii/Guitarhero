@@ -26,7 +26,8 @@ const ok = (name, cond, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL'} 
   await p.selectOption('dialog select', { label: 'Ode an die Freude' });
   await p.click('dialog .btn-primary');
   await p.waitForFunction(() => document.querySelectorAll('.step-list li').length === 2);
-  await p.click('.step-list li:nth-child(2) [aria-label="Nach oben"]');
+  await p.focus('.step-list li:nth-child(2) .drag-handle');
+  await p.keyboard.press('ArrowUp');
   await p.waitForFunction(() => document.querySelector('.step-list li strong').textContent === 'Ode an die Freude');
   ok('Plan bauen und sortieren', true);
   await p.screenshot({ path: `${OUT}/d-plan-light.png` });

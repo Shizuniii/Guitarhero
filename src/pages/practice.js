@@ -16,6 +16,7 @@ import { ChordInput } from '../ui/chord.js';
 import { Button, confirmDialog, Empty, Field, Modal, PageHead, Stepper } from '../ui/common.js';
 import { Fretboard } from '../ui/fretboard.js';
 import { Icon } from '../ui/icons.js';
+import { moveItem, useSortable } from '../ui/sortable.js';
 
 const ICONS = { chord: 'chord', timer: 'timer', metronome: 'metronome', change: 'chord', strum: 'strum', riff: 'riff', song: 'song', record: 'mic' };
 const HOSTS = { chord: ChordStep, timer: TimerStep, metronome: MetronomeStep, change: ChangeStep, strum: StrumStep, riff: ScoreStep, song: ScoreStep, record: RecordStep };
@@ -131,6 +132,8 @@ export function PracticePage() {
   const plan = list.find((p) => p.id === lastId) || list[0];
   const [dialog, setDialog] = useState(null);
   const [naming, setNaming] = useState(null);
+  const listRef = useRef(null);
+  const sort = useSortable(listRef, plan?.steps.map((s) => s.id) || [], (from, to) => saveSteps(moveItem(plan.steps, from, to)));
 
   async function createPlan(name) {
     const made = await plans.put({ id: uid(), name, steps: [] });
@@ -139,12 +142,6 @@ export function PracticePage() {
   }
 
   const saveSteps = (steps) => plans.put({ ...plan, steps });
-  const move = (i, d) => {
-    const steps = [...plan.steps];
-    const [s] = steps.splice(i, 1);
-    steps.splice(i + d, 0, s);
-    saveSteps(steps);
-  };
 
   async function removePlan() {
     const ok = await confirmDialog({ title: 'Plan löschen', text: `„${plan.name}“ wird gelöscht. Deine Akkorde, Riffs, Songs und Aufnahmen bleiben erhalten.` });
@@ -183,16 +180,19 @@ export function PracticePage() {
         ${total > 0 && html`<span class="muted">${plan.steps.length} Schritte, davon ${fmtTime(total)} mit Timer</span>`}
       </div>`}
 
-    <ol class="step-list">
-      ${plan.steps.map((s, i) => html`<li key=${s.id}>
-        <span class="step-index">${i + 1}</span>
+    <ol class=${`step-list${sort.drag ? ' sorting' : ''}`} ref=${listRef}>
+      ${plan.steps.map((s, i) => html`<li key=${s.id} data-sort-id=${s.id}
+        class=${sort.drag?.from === i ? 'dragging' : ''}
+        style=${sort.drag ? `transform: translateY(${sort.offset(i)}px)` : ''}>
+        <button type="button" class="drag-handle" ...${sort.handle(i)}
+          aria-label=${`${stepTitle(s)} verschieben. Ziehen oder Pfeiltasten nach oben und unten.`}
+          title="Ziehen zum Verschieben"><${Icon} name="grip" size=${20}/></button>
+        <span class="step-index">${sort.drag?.from === i ? sort.drag.to + 1 : i + 1 + Math.sign(sort.offset(i))}</span>
         <a class="step-title" href=${`#/plan/${plan.id}/${i}`}>
           <strong>${stepTitle(s)}</strong>
           <small>${STEP_TYPES[s.type].label}${s.config.seconds ? `, ${fmtTime(s.config.seconds)}` : ''}</small>
         </a>
         <div class="row step-actions">
-          <${Button} icon="up" aria-label="Nach oben" disabled=${i === 0} onClick=${() => move(i, -1)}/>
-          <${Button} icon="down" aria-label="Nach unten" disabled=${i === plan.steps.length - 1} onClick=${() => move(i, 1)}/>
           <${Button} icon="edit" aria-label="Schritt ändern" onClick=${() => setDialog({ edit: i, initial: s })}/>
           <${Button} icon="trash" aria-label="Schritt entfernen" onClick=${() => saveSteps(plan.steps.filter((x) => x.id !== s.id))}/>
         </div>
