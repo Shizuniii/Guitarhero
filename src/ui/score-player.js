@@ -247,7 +247,8 @@ export function ScorePlayer({ item, tex, compact, onBars }) {
           enableUserInteraction: true,
           enablePlaybackRangeSelection: true,
           resetPlaybackRangeOnClick: false,
-          soundFont: `${base}vendor/alphatab/soundfont/sonivox.sf2`,
+          // Gitarren aus GeneralUser GS, übrige Instrumente aus Sonivox (tools/build-soundfont.py)
+          soundFont: `${base}vendor/alphatab/soundfont/guitarhero.sf2`,
           scrollElement: viewport.current,
           scrollMode: 'OffScreen',
           scrollOffsetY: -24,
