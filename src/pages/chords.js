@@ -1,6 +1,6 @@
 import { html, useState } from '../../vendor/htm-preact.js';
 import { uid, useStore } from '../lib/core.js';
-import { allChordIds, COMMON_CHORDS, displayChordName, voicingsFor } from '../lib/chords.js';
+import { COMMON_CHORDS, displayChordName, fromInput, searchChords, voicingsFor } from '../lib/chords.js';
 import { go } from '../lib/router.js';
 import { customChords, settings } from '../lib/state.js';
 import { ChordDiagram, ChordInput, SoundButton, TabColumn } from '../ui/chord.js';
@@ -56,9 +56,7 @@ export function ChordsPage() {
   const [b, setB] = useState('C');
 
   const q = query.trim().toLowerCase();
-  const results = q
-    ? [...new Set(allChordIds())].filter((n) => displayChordName(n).toLowerCase().startsWith(q)).slice(0, 24)
-    : COMMON_CHORDS;
+  const results = q ? searchChords(fromInput(query), 24) : COMMON_CHORDS;
 
   return html`<div class="page">
     <${PageHead} title="Akkorde">
