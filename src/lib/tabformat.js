@@ -23,6 +23,17 @@ export const durationTicks = (beat) => {
 
 export const barTicks = (ts) => (ts[0] * 3840) / ts[1];
 
+// Takte, die nicht genau die Taktart füllen. Zu lange Takte überlappen sich beim Abspielen.
+export function badBars(model) {
+  const ts = model?.ts || [4, 4];
+  return (model?.bars || []).map((bar, i) => ({ bar: i + 1, ...barFill(bar, ts) })).filter((b) => !b.ok);
+}
+
+export function barList(bad) {
+  const nums = bad.map((b) => b.bar);
+  return nums.length === 1 ? `Takt ${nums[0]}` : `Takte ${nums.slice(0, -1).join(', ')} und ${nums[nums.length - 1]}`;
+}
+
 export function barFill(bar, ts) {
   const used = bar.beats.reduce((n, b) => n + durationTicks(b), 0);
   const want = barTicks(ts);
@@ -237,6 +248,10 @@ export function parseTextTab(text, { ts = [4, 4], tempo = 90 } = {}) {
 
 // KI-Helfer: prüft das eingefügte Ergebnis ------------------------------
 
+// Version des Formats, das der Tab-Leser liefert. Kommt ein neueres, muss die App erst aktualisiert werden,
+// sonst gingen Angaben wie Triolen stillschweigend verloren.
+export const HELPER_FORMAT = 2;
+
 export function parseHelperJson(text) {
   let data;
   try {
@@ -245,6 +260,7 @@ export function parseHelperJson(text) {
     return null;
   }
   if (!data || !Array.isArray(data.bars)) return null;
+  if (Number(data.format) > HELPER_FORMAT) return { tooNew: true };
   const valid = new Set([1, 2, 4, 8, 16, 32]);
   const ts = Array.isArray(data.ts) && data.ts.length === 2 ? data.ts.map(Number) : [4, 4];
   const bars = data.bars.map((bar) => ({

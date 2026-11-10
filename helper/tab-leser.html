@@ -275,6 +275,8 @@ function showResult(data) {
     return li;
   }));
   $('unsureBox').hidden = !unsure.length;
+  // Formatversion: Eine ältere App erkennt so, dass sie erst aktualisiert werden muss.
+  data.format = 2;
   $('json').value = JSON.stringify(data);
   $('copyBox').hidden = false;
 }

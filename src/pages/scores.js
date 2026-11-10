@@ -4,7 +4,7 @@ import { uid, useStore } from '../lib/core.js';
 import { dbDelete, dbPut } from '../lib/db.js';
 import { go } from '../lib/router.js';
 import { scores, settings } from '../lib/state.js';
-import { GUITAR_PROGRAMS, newModel, parseHelperJson, parseTextTab, toAlphaTex } from '../lib/tabformat.js';
+import { badBars, barList, GUITAR_PROGRAMS, newModel, parseHelperJson, parseTextTab, toAlphaTex } from '../lib/tabformat.js';
 import { toast } from '../lib/ui-state.js';
 import { Button, confirmDialog, Empty, Field, Modal, PageHead, useDebounced } from '../ui/common.js';
 import { Icon } from '../ui/icons.js';
@@ -135,6 +135,11 @@ export function ScoreEditPage({ id }) {
     go(item.kind === 'riff' ? 'riffs' : 'songs');
   }
 
+  function warnBars(model) {
+    const bad = badBars(model);
+    if (bad.length) toast(`${barList(bad)} füllen die Taktart nicht genau. Prüfe sie im Editor, sonst überlappen sich beim Abspielen Töne.`, 'warn', 9000);
+  }
+
   function applyText(text) {
     const model = parseTextTab(text);
     if (!model) return 'Ich finde hier keine Tabs. Gebraucht werden sechs Zeilen untereinander, zum Beispiel e|--0--3--|.';
@@ -146,12 +151,16 @@ export function ScoreEditPage({ id }) {
 
   function applyHelper(text) {
     const res = parseHelperJson(text);
+    if (res?.tooNew) return 'Dieses Ergebnis kommt aus einer neueren Version des Tab-Lesers. Schließ Guitarhero, öffne es neu und füge es dann noch einmal ein.';
     if (!res) return 'Das ist kein Ergebnis der Helfer-Seite. Kopiere dort den ganzen Block über den Kopieren-Knopf.';
+    // Hinweise eines früheren Einlesens ersetzen, statt sie anzuhängen
+    const ownNotes = (item.notes || '').split('\n').filter((l) => !l.startsWith('Unsichere Stellen laut KI:')).join('\n').trim();
+    warnBars(res.model);
     patch({
       score: { format: 'model', data: res.model },
       title: item.title.startsWith('Neuer') && res.title ? res.title : item.title,
       artist: item.artist || res.artist,
-      notes: res.uncertain.length ? `${item.notes ? `${item.notes}\n` : ''}Unsichere Stellen laut KI: ${res.uncertain.join(', ')}` : item.notes,
+      notes: res.uncertain.length ? `${ownNotes ? `${ownNotes}\n` : ''}Unsichere Stellen laut KI: ${res.uncertain.join(', ')}` : ownNotes,
     }).then(() => {
       setPaste(null);
       go(`score/${item.id}/tabs`);
