@@ -153,7 +153,7 @@ const EXAMPLE = {
   title: 'Beispiel-Riff', tempo: 96, ts: [4, 4],
   bars: [
     { beats: [{ d: 8, notes: [{ s: 5, f: 0 }] }, { d: 8, notes: [{ s: 5, f: 3 }] }, { d: 8, notes: [{ s: 4, f: 2 }] }, { d: 8, notes: [{ s: 5, f: 3 }] }, { d: 8, notes: [{ s: 4, f: 2 }] }, { d: 8, notes: [{ s: 5, f: 3 }] }, { d: 4, notes: [{ s: 5, f: 0 }] }] },
-    { beats: [{ d: 8, notes: [{ s: 5, f: 0 }] }, { d: 8, notes: [{ s: 5, f: 3 }] }, { d: 8, notes: [{ s: 5, f: 5, fx: { h: true } }] }, { d: 8, notes: [{ s: 5, f: 7 }] }, { d: 2, notes: [] }] },
+    { beats: [{ d: 8, notes: [{ s: 5, f: 0 }] }, { d: 8, notes: [{ s: 5, f: 3 }] }, { d: 8, notes: [{ s: 5, f: 5, fx: { h: true } }] }, { d: 8, notes: [{ s: 5, f: 7 }] }, { d: 4, t: 3, notes: [{ s: 4, f: 5 }] }, { d: 4, t: 3, notes: [{ s: 4, f: 7 }] }, { d: 4, t: 3, notes: [{ s: 4, f: 5 }] }] },
   ],
 };
 
@@ -169,11 +169,12 @@ function buildPrompt() {
   return `Du liest Gitarrennotation aus den angehängten Bildern und gibst sie als JSON zurück. Die Bilder gehören in der gegebenen Reihenfolge zu einem Stück.
 
 Antworte nur mit einem JSON-Objekt in genau dieser Form:
-{"title":"","artist":"","tempo":90,"ts":[4,4],"bars":[{"beats":[{"d":8,"dot":false,"notes":[{"s":6,"f":3,"fx":{"h":true}}]}]}],"uncertain":["Takt 3: ..."]}
+{"title":"","artist":"","tempo":90,"ts":[4,4],"bars":[{"beats":[{"d":8,"dot":false,"notes":[{"s":6,"f":3,"fx":{"h":true}}]},{"d":4,"t":3,"notes":[{"s":1,"f":10}]},{"d":4,"t":3,"notes":[{"s":1,"f":7}]},{"d":4,"t":3,"notes":[{"s":1,"f":5}]}]}],"uncertain":["Takt 3: ..."]}
 
 Regeln:
 - "s" ist die Saite: 1 ist die hohe e-Saite, 6 die tiefe E-Saite. "f" ist der Bund, 0 ist leer.
 - "d" ist der Notenwert: 1, 2, 4, 8, 16 oder 32. "dot": true heißt punktiert.
+- Triolen und andere N-tolen: Jede Note der Gruppe bekommt "t" mit der Anzahl und ihren geschriebenen Notenwert in "d". Eine Viertel-Triole sind drei Beats mit "d":4 und "t":3, zusammen so lang wie zwei Viertel. Erlaubt sind "t": 3 (Triole, 3 in der Zeit von 2), 5 und 6 (Quintole und Sextole, in der Zeit von 4) und 7 (Septole, in der Zeit von 4). Eine Pause innerhalb einer Triole bekommt ebenfalls "t". Schreibe Triolen nie als normale Notenwerte um.
 - Eine Pause ist ein Beat mit leerem "notes". Ein Akkord ist ein Beat mit mehreren Noten.
 - Jeder Takt muss die Taktart genau füllen. Taktstriche im Bild ergeben die Takte.
 - "fx" ist optional und kennt nur: "h" (Hammer-on oder Pull-off), "sl" (Slide), "b" (Bend), "v" (Vibrato), "pm" (Palm Mute), "x" (gedämpfte Note).
@@ -190,26 +191,41 @@ ${title ? `- Der Titel ist: ${title}.` : '- Nimm den Titel aus dem Bild, falls e
 const LABELS = ['e', 'B', 'G', 'D', 'A', 'E'];
 
 function asciiTab(data) {
+  // Oberste Zeile markiert den Beginn jeder Triole oder N-tole mit ihrer Zahl.
   const rows = [[], [], [], [], [], []];
+  const marks = [];
   const perLine = 2;
   const out = [];
+  let runT = 0;
+  let runN = 0;
   data.bars.forEach((bar, i) => {
+    const markCols = [];
     const cols = (bar.beats || []).map((b) => {
-      const width = Math.max(2, Math.round(16 / (b.d || 8)) * 2) + (b.dot ? 1 : 0);
+      const tu = Number(b.t) || 0;
+      const width = Math.max(2, Math.round(16 / (b.d || 8)) * 2 * (tu ? 2 / 3 : 1)) + (b.dot ? 1 : 0);
       const texts = [1, 2, 3, 4, 5, 6].map((s) => {
         const n = (b.notes || []).find((x) => Number(x.s) === s);
         if (!n) return '';
         const mark = n.fx?.h ? 'h' : n.fx?.sl ? '/' : n.fx?.b ? 'b' : n.fx?.v ? '~' : '';
         return (n.fx?.x ? 'x' : String(n.f)) + mark;
       });
-      const w = Math.max(width, ...texts.map((t) => t.length + 1));
+      const w = Math.max(Math.round(width), ...texts.map((t) => t.length + 1));
+      let start = false;
+      if (tu) {
+        if (runT === tu && runN % tu !== 0) runN += 1;
+        else { runT = tu; runN = 1; start = true; }
+      } else { runT = 0; runN = 0; }
+      markCols.push((start ? String(tu) : '').padEnd(w, ' '));
       return texts.map((t) => t.padEnd(w, '-'));
     });
+    marks.push(markCols.join(''));
     rows.forEach((r, s) => r.push(cols.map((c) => c[s]).join('')));
     if ((i + 1) % perLine === 0 || i === data.bars.length - 1) {
+      const top = `   ${marks.join('  ')}`;
       const lines = rows.map((r, s) => `${LABELS[s]}|-${r.join('|-')}|`);
-      out.push(lines.join('\n'));
+      out.push((top.trim() ? `${top.trimEnd()}\n` : '') + lines.join('\n'));
       rows.forEach((r) => { r.length = 0; });
+      marks.length = 0;
     }
   });
   return out.join('\n\n');
@@ -220,7 +236,8 @@ function barProblems(data) {
   const want = (ts[0] * 3840) / ts[1];
   const bad = [];
   data.bars.forEach((bar, i) => {
-    const used = (bar.beats || []).reduce((n, b) => n + (3840 / (b.d || 8)) * (b.dot ? 1.5 : 1), 0);
+    const TU = { 3: 2, 5: 4, 6: 4, 7: 4 };
+    const used = (bar.beats || []).reduce((n, b) => n + (3840 / (b.d || 8)) * (b.dot ? 1.5 : 1) * (TU[b.t] ? TU[b.t] / b.t : 1), 0);
     if (Math.abs(used - want) > 1) bad.push(`Takt ${i + 1}: Die Notenwerte füllen den Takt nicht genau.`);
   });
   return bad;

@@ -1,6 +1,6 @@
 // node tests/tabformat.test.mjs
 import assert from 'node:assert/strict';
-import { parseTextTab, findTabBlocks, toAlphaTex, barFill, parseHelperJson } from '../src/lib/tabformat.js';
+import { parseTextTab, findTabBlocks, toAlphaTex, barFill, parseHelperJson, durationTicks } from '../src/lib/tabformat.js';
 
 const riff = `
 Riff:
@@ -65,4 +65,16 @@ const helper = parseHelperJson(JSON.stringify({ title: 'X', tempo: 100, ts: [4, 
 assert.equal(helper.model.bars[0].beats[1].d, 8);
 assert.equal(helper.model.bars[0].beats[1].notes.length, 0);
 assert.equal(parseHelperJson('kein json'), null);
+// Triolen
+assert.equal(durationTicks({ d: 4, t: 3 }), 640);
+assert.equal(durationTicks({ d: 8, dot: true, t: 3 }), 480);
+assert.equal(durationTicks({ d: 16, t: 6 }), 160);
+assert.equal(durationTicks({ d: 4, t: 4 }), 960, 'unbekannte N-tole zählt normal');
+const tri = { beats: [{ d: 4, notes: [] }, { d: 4, notes: [] }, { d: 4, t: 3, notes: [{ s: 1, f: 10 }] }, { d: 4, t: 3, notes: [{ s: 1, f: 7 }] }, { d: 4, t: 3, notes: [{ s: 1, f: 5 }] }] };
+assert.ok(barFill(tri, [4, 4]).ok, 'Takt mit Viertel-Triole ist voll');
+const triTex = toAlphaTex({ tempo: 90, ts: [4, 4], bars: [tri, { beats: [{ d: 8, dot: true, t: 3, notes: [] }, { d: 2, notes: [] }] }] });
+assert.ok(triTex.includes('(10.1).4{tu 3}'), triTex);
+assert.ok(triTex.includes('r.8{d tu 3}'), triTex);
+const hj = parseHelperJson(JSON.stringify({ bars: [{ beats: [{ d: 4, t: 3, notes: [] }, { d: 4, t: 4, notes: [] }, { d: 4, t: 'x', notes: [] }] }] }));
+assert.deepEqual(hj.model.bars[0].beats.map((b) => b.t), [3, undefined, undefined]);
 console.log('tabformat: alle Prüfungen bestanden');

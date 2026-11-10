@@ -11,9 +11,14 @@ export function emptyBar(ts = [4, 4]) {
   return { beats: Array.from({ length: ts[0] }, () => ({ d: ts[1], notes: [] })) };
 }
 
+// N-tolen: t Noten in der Zeit von n normalen. Triole = 3 in der Zeit von 2.
+export const TUPLETS = { 3: 2, 5: 4, 6: 4, 7: 4 };
+export const TUPLET_NAMES = { 3: 'Triole', 5: 'Quintole', 6: 'Sextole', 7: 'Septole' };
+
 export const durationTicks = (beat) => {
   const base = 3840 / beat.d;
-  return beat.dot ? base * 1.5 : base;
+  const len = beat.dot ? base * 1.5 : base;
+  return TUPLETS[beat.t] ? (len * TUPLETS[beat.t]) / beat.t : len;
 };
 
 export const barTicks = (ts) => (ts[0] * 3840) / ts[1];
@@ -39,7 +44,8 @@ function noteTex(n) {
 }
 
 function beatTex(b) {
-  const dot = b.dot ? '{d}' : '';
+  const props = [b.dot ? 'd' : '', TUPLETS[b.t] ? `tu ${b.t}` : ''].filter(Boolean);
+  const dot = props.length ? `{${props.join(' ')}}` : '';
   if (!b.notes.length) return `r.${b.d}${dot}`;
   const sorted = [...b.notes].sort((x, y) => y.s - x.s);
   return `(${sorted.map(noteTex).join(' ')}).${b.d}${dot}`;
@@ -245,6 +251,7 @@ export function parseHelperJson(text) {
     beats: (bar.beats || []).map((b) => ({
       d: valid.has(Number(b.d)) ? Number(b.d) : 8,
       ...(b.dot ? { dot: true } : {}),
+      ...(TUPLETS[Number(b.t)] ? { t: Number(b.t) } : {}),
       notes: (b.notes || [])
         .filter((n) => n.s >= 1 && n.s <= 6 && n.f >= 0 && n.f <= 30)
         .map((n) => ({ s: Number(n.s), f: Number(n.f), ...(n.fx ? { fx: n.fx } : {}) })),
