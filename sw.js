@@ -1,5 +1,5 @@
 // Macht Guitarhero offline nutzbar. Wird von tools/build-sw.mjs erzeugt.
-const VERSION = 'guitarhero-efbcf6411d';
+const VERSION = 'guitarhero-1eaee7cc5b';
 const FILES = [
   "./",
   "css/app.css",

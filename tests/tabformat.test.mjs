@@ -84,4 +84,16 @@ assert.equal(barList(badBars(overfull)), 'Takte 2 und 3');
 assert.equal(barList([{ bar: 4 }]), 'Takt 4');
 assert.deepEqual(parseHelperJson(JSON.stringify({ format: HELPER_FORMAT + 1, bars: [{ beats: [{ d: 4, notes: [] }] }] })), { tooNew: true });
 assert.ok(parseHelperJson(JSON.stringify({ format: HELPER_FORMAT, bars: [{ beats: [{ d: 4, notes: [] }] }] })).model);
+// Stimmung, Kapodaster und Wissen der KI
+const kn = parseHelperJson(JSON.stringify({ format: 3, tempo: 124, tuning: 'dropd', capo: 2, info: ['Tempo 124 BPM: Originaltempo.', ' '], bars: [{ beats: [{ d: 1, notes: [] }] }] }));
+assert.equal(kn.model.tuningId, 'dropd');
+assert.equal(kn.model.capo, 2);
+assert.equal(kn.model.tempo, 124);
+assert.deepEqual(kn.info, ['Tempo 124 BPM: Originaltempo.']);
+const odd = parseHelperJson(JSON.stringify({ tempo: 999, tuning: 'nashville', capo: 40, bars: [{ beats: [{ d: 1, notes: [] }] }] }));
+assert.equal(odd.model.tuningId, 'standard');
+assert.equal(odd.model.capo, 12);
+assert.equal(odd.model.tempo, 320);
+assert.deepEqual(odd.info, []);
+assert.match(toAlphaTex(kn.model), /\\tuning \(E4 B3 G3 D3 A2 D2\)/);
 console.log('tabformat: alle Prüfungen bestanden');

@@ -1,5 +1,7 @@
 // Eigener Tab-Editor: Bünde tippen, Notenwerte wählen, Effekte setzen.
 import { html, useEffect, useRef, useState } from '../../vendor/htm-preact.js';
+import { noteName, TUNINGS, tuningById } from '../lib/pitch.js';
+import { settings } from '../lib/state.js';
 import { barFill, durationTicks, emptyBar, TUPLET_NAMES } from '../lib/tabformat.js';
 import { Button, Field, Stepper } from './common.js';
 import { stringNames } from './chord.js';
@@ -85,7 +87,11 @@ export function TabEditor({ model, onChange }) {
   const [duration, setDuration] = useState({ d: 8, dot: false });
   const digit = useRef({ at: 0, value: '' });
   const grid = useRef(null);
-  const names = stringNames();
+  // Bei anderer Stimmung zeigen die Saiten ihren tatsächlichen Ton
+  const style = settings.get().noteNames === 'de' ? 'de' : 'intl';
+  const names = (model.tuningId || 'standard') === 'standard'
+    ? stringNames()
+    : tuningById(model.tuningId).midi.map((m, i) => (i === 5 ? noteName(m, style).toLowerCase() : noteName(m, style)));
   const stringLabels = [5, 4, 3, 2, 1, 0].map((i) => names[i]);
 
   const bar = model.bars[cur.bar];
@@ -231,6 +237,11 @@ export function TabEditor({ model, onChange }) {
       <${Field} label="Taktart">
         <select value=${model.ts.join('/')} onChange=${(e) => commit((m) => { m.ts = e.currentTarget.value.split('/').map(Number); })}>
           ${['4/4', '3/4', '2/4', '6/8', '5/4', '7/8', '12/8'].map((t) => html`<option value=${t}>${t}</option>`)}
+        </select>
+      <//>
+      <${Field} label="Stimmung">
+        <select value=${model.tuningId || 'standard'} onChange=${(e) => commit((m) => { m.tuningId = e.currentTarget.value; })}>
+          ${TUNINGS.map((t) => html`<option value=${t.id}>${t.name}</option>`)}
         </select>
       <//>
       <${Field} label="Kapodaster im Bund"><${Stepper} label="Kapodaster" value=${model.capo || 0} min=${0} max=${12} onChange=${(v) => commit((m) => { m.capo = v; })}/><//>

@@ -154,13 +154,20 @@ export function ScoreEditPage({ id }) {
     if (res?.tooNew) return 'Dieses Ergebnis kommt aus einer neueren Version des Tab-Lesers. Schließ Guitarhero, öffne es neu und füge es dann noch einmal ein.';
     if (!res) return 'Das ist kein Ergebnis der Helfer-Seite. Kopiere dort den ganzen Block über den Kopieren-Knopf.';
     // Hinweise eines früheren Einlesens ersetzen, statt sie anzuhängen
-    const ownNotes = (item.notes || '').split('\n').filter((l) => !l.startsWith('Unsichere Stellen laut KI:')).join('\n').trim();
+    const ownNotes = (item.notes || '').split('\n')
+      .filter((l) => !l.startsWith('Unsichere Stellen laut KI:') && !l.startsWith('Aus dem Wissen der KI:'))
+      .join('\n').trim();
+    const notes = [
+      ownNotes,
+      res.info.length ? `Aus dem Wissen der KI: ${res.info.join(' ')}` : '',
+      res.uncertain.length ? `Unsichere Stellen laut KI: ${res.uncertain.join(', ')}` : '',
+    ].filter(Boolean).join('\n');
     warnBars(res.model);
     patch({
       score: { format: 'model', data: res.model },
       title: item.title.startsWith('Neuer') && res.title ? res.title : item.title,
       artist: item.artist || res.artist,
-      notes: res.uncertain.length ? `${ownNotes ? `${ownNotes}\n` : ''}Unsichere Stellen laut KI: ${res.uncertain.join(', ')}` : ownNotes,
+      notes,
     }).then(() => {
       setPaste(null);
       go(`score/${item.id}/tabs`);
