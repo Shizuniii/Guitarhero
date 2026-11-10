@@ -80,6 +80,8 @@ button.primary:hover:not(:disabled) { background: var(--ink); opacity: 0.88; }
 .meta dd { margin: 0; font-weight: 600; }
 .unsure { margin: 0; padding-left: 20px; }
 textarea { width: 100%; min-height: 96px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--deep); color: var(--ink); font: 400 13.5px/1.35 var(--mono); }
+textarea.hints { min-height: 84px; font: 400 16.5px/1.4 var(--ui); resize: vertical; }
+.hint { font-weight: 400; font-size: 14.5px; }
 .steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
 .thinking { display: flex; align-items: center; gap: 10px; font-weight: 600; }
 .thinking i { width: 14px; height: 14px; border-radius: 50%; background: var(--abalone); }
@@ -113,8 +115,9 @@ textarea { width: 100%; min-height: 96px; padding: 10px; border: 1px solid var(-
           <input id="tempo" type="number" min="20" max="320" placeholder="Erkennen lassen">
         </label>
       </div>
-      <label class="field">Titel, falls bekannt
-        <input id="title" type="text" autocomplete="off">
+      <label class="field">Zusatzinfos, optional
+        <textarea id="extra" class="hints" placeholder="z. B. Seven Nation Army von The White Stripes, Hauptriff"></textarea>
+        <span class="hint soft">Song, Interpret, welcher Teil, Stimmung. Erkennt Claude das Stück, ergänzt es aus seinem Wissen, was im Bild fehlt, etwa das Originaltempo. Im Internet suchen kann diese Seite nicht.</span>
       </label>
       <div class="row">
         <button class="primary" id="run" type="button" disabled>Tabs erkennen</button>
@@ -128,6 +131,11 @@ textarea { width: 100%; min-height: 96px; padding: 10px; border: 1px solid var(-
       <div class="row"><h2 id="resultTitle">So sieht das Ergebnis aus</h2><span class="tag" id="exampleTag">Beispiel</span></div>
       <dl class="meta" id="meta"></dl>
       <pre class="tab-out" id="preview" aria-label="Erkannte Tabs"></pre>
+      <div id="infoBox" class="col" hidden>
+        <h2>Aus Claudes Wissen</h2>
+        <p class="soft small">Das steht nicht im Bild. Bei bekannten Songs stimmt es meist. Klingt etwas falsch, ändere es im Editor.</p>
+        <ul class="unsure" id="info"></ul>
+      </div>
       <div id="unsureBox" class="col" hidden>
         <h2>Bitte prüfen</h2>
         <ul class="unsure" id="unsure"></ul>
@@ -165,11 +173,11 @@ let controller = null;
 function buildPrompt() {
   const ts = $('ts').value;
   const tempo = $('tempo').value;
-  const title = $('title').value.trim();
+  const extra = $('extra').value.trim();
   return `Du liest Gitarrennotation aus den angehängten Bildern und gibst sie als JSON zurück. Die Bilder gehören in der gegebenen Reihenfolge zu einem Stück.
 
 Antworte nur mit einem JSON-Objekt in genau dieser Form:
-{"title":"","artist":"","tempo":90,"ts":[4,4],"bars":[{"beats":[{"d":8,"dot":false,"notes":[{"s":6,"f":3,"fx":{"h":true}}]},{"d":4,"t":3,"notes":[{"s":1,"f":10}]},{"d":4,"t":3,"notes":[{"s":1,"f":7}]},{"d":4,"t":3,"notes":[{"s":1,"f":5}]}]}],"uncertain":["Takt 3: ..."]}
+{"title":"","artist":"","tempo":90,"ts":[4,4],"tuning":"standard","capo":0,"bars":[{"beats":[{"d":8,"dot":false,"notes":[{"s":6,"f":3,"fx":{"h":true}}]},{"d":4,"t":3,"notes":[{"s":1,"f":10}]},{"d":4,"t":3,"notes":[{"s":1,"f":7}]},{"d":4,"t":3,"notes":[{"s":1,"f":5}]}]}],"uncertain":["Takt 3: ..."],"info":["..."]}
 
 Regeln:
 - "s" ist die Saite: 1 ist die hohe e-Saite, 6 die tiefe E-Saite. "f" ist der Bund, 0 ist leer.
@@ -182,13 +190,29 @@ Regeln:
 - Sind Notenhälse oder Rhythmuszeichen zu sehen, übernimm den Rhythmus daraus. Fehlen sie, schätze ihn aus den Abständen und nenne das in "uncertain".
 - Zeigt das Bild nur Noten ohne Tabs, wähle die einfachste Griffweise in den unteren Bünden und nenne das in "uncertain".
 - Trage jede Stelle, die du nicht sicher lesen kannst, mit Taktnummer in "uncertain" ein. Rate nicht still.
-- Erfinde nichts dazu, was nicht im Bild steht.
-${ts ? `- Die Taktart ist ${ts}.` : '- Erkenne die Taktart aus dem Bild, sonst nimm 4/4.'}
-${tempo ? `- Das Tempo ist ${tempo} BPM.` : '- Nimm das Tempo aus dem Bild, sonst 90.'}
-${title ? `- Der Titel ist: ${title}.` : '- Nimm den Titel aus dem Bild, falls einer dasteht, sonst lasse ihn leer.'}`;
+- Noten und Bünde kommen immer aus dem Bild. Erfinde keine Noten dazu.
+- "tuning" ist die Stimmung: "standard", "dropd" (Drop D), "halfdown" (alle Saiten einen Halbton tiefer), "wholedown" (einen Ganzton tiefer), "dadgad" oder "openg". Ist es eine andere Stimmung, nimm "standard" und nenne die richtige in "uncertain". "capo" ist der Bund des Kapodasters, 0 ohne.
+${ts ? `- Die Taktart ist ${ts}.` : '- Taktart: aus dem Bild, sonst die des Originals, sonst 4/4.'}
+${tempo ? `- Das Tempo ist ${tempo} BPM.` : '- Tempo: aus dem Bild, sonst das Originaltempo des Stücks. Kennst du es nicht sicher, nimm 90 und schreibe in "uncertain", dass das Tempo geschätzt ist.'}
+- Titel und Interpret: aus dem Bild oder den Hinweisen des Nutzers, sonst aus deinem Wissen, sonst leer.
+
+Wissen über das Stück:
+- Erkennst du das Stück sicher, am Bild oder an den Hinweisen des Nutzers, ergänze aus deinem Wissen, was im Bild fehlt: Titel, Interpret, Originaltempo, Taktart, Stimmung und Kapodaster. Bist du dir beim Stück nicht sicher, ergänze nichts aus deinem Wissen.
+- Fehlen im Bild Rhythmuszeichen und du kennst den Rhythmus des Originals sicher, nimm diesen Rhythmus statt einer Schätzung.
+- Weicht das Bild vom Original ab, das du kennst, gilt das Bild. Nenne die Abweichung in "info".
+- Schreibe in "info" für jeden Wert, den du aus deinem Wissen statt aus dem Bild genommen hast, einen kurzen deutschen Satz, zum Beispiel "Tempo 124 BPM: Originaltempo des Songs." Hast du nichts aus deinem Wissen genommen, bleibt "info" leer.
+${extra ? `
+Hinweise des Nutzers zum Stück. Sie gelten vor deinem Wissen, die Noten im Bild gelten vor ihnen:
+<hinweise>
+${extra}
+</hinweise>` : ''}`;
 }
 
-const LABELS = ['e', 'B', 'G', 'D', 'A', 'E'];
+const TUNING_LABELS = {
+  standard: ['e', 'B', 'G', 'D', 'A', 'E'], dropd: ['e', 'B', 'G', 'D', 'A', 'D'], halfdown: ['eb', 'Bb', 'Gb', 'Db', 'Ab', 'Eb'],
+  wholedown: ['d', 'A', 'F', 'C', 'G', 'D'], dadgad: ['d', 'A', 'G', 'D', 'A', 'D'], openg: ['d', 'B', 'G', 'D', 'G', 'D'],
+};
+const TUNING_NAMES = { dropd: 'Drop D', halfdown: 'Halbton tiefer', wholedown: 'Ganzton tiefer', dadgad: 'DADGAD', openg: 'Open G' };
 
 function asciiTab(data) {
   // Oberste Zeile markiert den Beginn jeder Triole oder N-tole mit ihrer Zahl.
@@ -222,7 +246,9 @@ function asciiTab(data) {
     rows.forEach((r, s) => r.push(cols.map((c) => c[s]).join('')));
     if ((i + 1) % perLine === 0 || i === data.bars.length - 1) {
       const top = `   ${marks.join('  ')}`;
-      const lines = rows.map((r, s) => `${LABELS[s]}|-${r.join('|-')}|`);
+      const labels = TUNING_LABELS[data.tuning] || TUNING_LABELS.standard;
+      const pad = Math.max(...labels.map((l) => l.length));
+      const lines = rows.map((r, s) => `${labels[s].padEnd(pad, ' ')}|-${r.join('|-')}|`);
       out.push((top.trim() ? `${top.trimEnd()}\n` : '') + lines.join('\n'));
       rows.forEach((r) => { r.length = 0; });
       marks.length = 0;
@@ -257,26 +283,42 @@ function setMeta(data) {
     meta.append(d);
   };
   add('Titel', data.title);
+  add('Interpret', data.artist);
   add('Takte', String(data.bars.length));
   add('Taktart', (data.ts || [4, 4]).join('/'));
   add('Tempo', data.tempo ? `${data.tempo} BPM` : '');
+  add('Stimmung', TUNING_NAMES[data.tuning] || '');
+  add('Kapodaster', Number(data.capo) > 0 ? `${data.capo}. Bund` : '');
+}
+
+function fillList(id, items) {
+  $(id).replaceChildren(...items.map((u) => {
+    const li = document.createElement('li');
+    li.textContent = u;
+    return li;
+  }));
 }
 
 function showResult(data) {
   $('resultTitle').textContent = 'Erkannte Tabs';
   $('exampleTag').hidden = true;
+  const unsure = [...(Array.isArray(data.uncertain) ? data.uncertain.map(String) : []), ...barProblems(data)];
+  if (data.tuning && !TUNING_LABELS[data.tuning]) {
+    unsure.push(`Stimmung „${data.tuning}“ kennt Guitarhero nicht, eingetragen ist Standard.`);
+  }
+  data.tuning = TUNING_LABELS[data.tuning] ? data.tuning : 'standard';
+  data.capo = Math.max(0, Math.min(12, Math.round(Number(data.capo) || 0)));
+  data.uncertain = unsure;
+  data.info = Array.isArray(data.info) ? data.info.map(String).filter((t) => t.trim()) : [];
   setMeta(data);
   $('preview').textContent = asciiTab(data);
-  const unsure = [...(Array.isArray(data.uncertain) ? data.uncertain : []), ...barProblems(data)];
-  data.uncertain = unsure;
-  $('unsure').replaceChildren(...unsure.map((u) => {
-    const li = document.createElement('li');
-    li.textContent = u;
-    return li;
-  }));
+  fillList('info', data.info);
+  $('infoBox').hidden = !data.info.length;
+  fillList('unsure', unsure);
   $('unsureBox').hidden = !unsure.length;
   // Formatversion: Eine ältere App erkennt so, dass sie erst aktualisiert werden muss.
-  data.format = 2;
+  // Nur eine andere Stimmung braucht Version 3, alles andere liest auch die Version davor richtig.
+  data.format = data.tuning === 'standard' ? 2 : 3;
   $('json').value = JSON.stringify(data);
   $('copyBox').hidden = false;
 }

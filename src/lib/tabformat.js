@@ -1,5 +1,5 @@
 // Tab-Modell: umwandeln nach alphaTex, Text-Tabs einlesen, Takte prüfen.
-import { tuningById } from './pitch.js';
+import { TUNINGS, tuningById } from './pitch.js';
 
 export const newModel = (over = {}) => ({
   tempo: 90, ts: [4, 4], capo: 0, tuningId: 'standard',
@@ -249,8 +249,8 @@ export function parseTextTab(text, { ts = [4, 4], tempo = 90 } = {}) {
 // KI-Helfer: prüft das eingefügte Ergebnis ------------------------------
 
 // Version des Formats, das der Tab-Leser liefert. Kommt ein neueres, muss die App erst aktualisiert werden,
-// sonst gingen Angaben wie Triolen stillschweigend verloren.
-export const HELPER_FORMAT = 2;
+// sonst gingen Angaben wie Triolen stillschweigend verloren. Version 3 bringt die Stimmung mit.
+export const HELPER_FORMAT = 3;
 
 export function parseHelperJson(text) {
   let data;
@@ -277,7 +277,15 @@ export function parseHelperJson(text) {
   return {
     title: typeof data.title === 'string' ? data.title : '',
     artist: typeof data.artist === 'string' ? data.artist : '',
-    model: { tempo: Number(data.tempo) || 90, ts, capo: Number(data.capo) || 0, tuningId: 'standard', bars },
+    model: {
+      tempo: Math.min(320, Math.max(20, Math.round(Number(data.tempo) || 90))),
+      ts,
+      capo: Math.min(12, Math.max(0, Math.round(Number(data.capo) || 0))),
+      tuningId: TUNINGS.some((t) => t.id === data.tuning) ? data.tuning : 'standard',
+      bars,
+    },
     uncertain: Array.isArray(data.uncertain) ? data.uncertain.map(String) : [],
+    // Was die KI aus ihrem Wissen über das Stück ergänzt hat, nicht aus dem Bild
+    info: Array.isArray(data.info) ? data.info.map(String).filter((t) => t.trim()) : [],
   };
 }

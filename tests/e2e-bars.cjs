@@ -43,7 +43,7 @@ async function importJson(p, data) {
 
   await p.evaluate((x) => { location.hash = `#/score/${x}`; }, id);
   await p.waitForSelector('.edit-grid');
-  await importJson(p, { ...song, format: 3 });
+  await importJson(p, { ...song, format: 4 });
   await p.waitForSelector('dialog .notice');
   ok('Neueres Format wird abgelehnt statt still verfälscht', /neueren Version des Tab-Lesers/.test(await p.textContent('dialog .notice')));
   await p.fill('.tab-paste', JSON.stringify({ ...song, format: 2 }));
