@@ -8,6 +8,7 @@ import { resetTimer, setTimerDuration } from '../lib/timer.js';
 import { Button, Empty, Field } from '../ui/common.js';
 import { Icon } from '../ui/icons.js';
 import { ScorePlayer } from '../ui/score-player.js';
+import { badBars, barList } from '../lib/tabformat.js';
 import { TakesList } from '../ui/wave.js';
 import { YouTubePane } from '../ui/youtube.js';
 
@@ -78,7 +79,18 @@ export function ScoreStep({ step, onConfig }) {
     <//>`;
   }
 
+  const bad = item.score?.format === 'model' ? badBars(item.score.data) : [];
+  const beats = (b) => Math.round((b.used / b.want) * (item.score.data.ts?.[0] || 4) * 100) / 100;
+  const want = item.score?.data?.ts?.[0] || 4;
+  const barDetail = bad.length
+    ? `${bad.length === 1 ? 'Er hat' : 'Sie haben'} ${[...new Set(bad.map(beats))].join(' bzw. ')} statt ${want} Schlägen. Beim Abspielen überlappen sich dadurch Töne oder es entstehen Lücken.`
+    : '';
   return html`<div class="step step-score">
+    ${bad.length > 0 && html`<div class="notice bar-warning" role="alert">
+      <p><strong>${barList(bad)} ${bad.length === 1 ? 'passt' : 'passen'} nicht in den ${(item.score.data.ts || [4, 4]).join('/')}-Takt.</strong> ${barDetail}</p>
+      <p class="small">Meist fehlt eine Triole. Lies das Ergebnis des Tab-Lesers über Bearbeiten → Screenshot per KI noch einmal ein, oder korrigiere die Takte im Editor.</p>
+      <${Button} size="sm" icon="edit" onClick=${() => go(`score/${item.id}/tabs`)}>Im Editor öffnen<//>
+    </div>`}
     ${item.score
       ? html`<${ScorePlayer} key=${item.id} item=${item}/>`
       : html`<p class="muted">Hier sind noch keine abspielbaren Tabs hinterlegt.</p>`}

@@ -636,3 +636,4 @@ kbd { font: 600 14.5px var(--ui); padding: 2px 7px; border: 1px solid var(--line
 .sc-row.st-dead .sc-result, .sc-row.st-open .sc-result, .sc-row.st-fret .sc-result, .sc-row.st-other .sc-result { color: var(--bad); font-weight: 600; }
 .sc-row.muted > span { font-size: 15px; grid-column: 2 / 4; }
 .cal-count { font: 800 34px/1.1 var(--display); }
+.bar-warning { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }

@@ -1,6 +1,6 @@
 // node tests/tabformat.test.mjs
 import assert from 'node:assert/strict';
-import { parseTextTab, findTabBlocks, toAlphaTex, barFill, parseHelperJson, durationTicks } from '../src/lib/tabformat.js';
+import { parseTextTab, findTabBlocks, toAlphaTex, barFill, parseHelperJson, durationTicks, badBars, barList, HELPER_FORMAT } from '../src/lib/tabformat.js';
 
 const riff = `
 Riff:
@@ -77,4 +77,11 @@ assert.ok(triTex.includes('(10.1).4{tu 3}'), triTex);
 assert.ok(triTex.includes('r.8{d tu 3}'), triTex);
 const hj = parseHelperJson(JSON.stringify({ bars: [{ beats: [{ d: 4, t: 3, notes: [] }, { d: 4, t: 4, notes: [] }, { d: 4, t: 'x', notes: [] }] }] }));
 assert.deepEqual(hj.model.bars[0].beats.map((b) => b.t), [3, undefined, undefined]);
+// Zu lange Takte und Formatversion
+const overfull = { ts: [4, 4], bars: [tri, { beats: [{ d: 4, notes: [] }, { d: 4, notes: [] }, { d: 4, notes: [] }, { d: 4, notes: [] }, { d: 4, notes: [] }] }, { beats: [{ d: 2, notes: [] }] }] };
+assert.deepEqual(badBars(overfull).map((b) => b.bar), [2, 3]);
+assert.equal(barList(badBars(overfull)), 'Takte 2 und 3');
+assert.equal(barList([{ bar: 4 }]), 'Takt 4');
+assert.deepEqual(parseHelperJson(JSON.stringify({ format: HELPER_FORMAT + 1, bars: [{ beats: [{ d: 4, notes: [] }] }] })), { tooNew: true });
+assert.ok(parseHelperJson(JSON.stringify({ format: HELPER_FORMAT, bars: [{ beats: [{ d: 4, notes: [] }] }] })).model);
 console.log('tabformat: alle Prüfungen bestanden');

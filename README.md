@@ -27,6 +27,7 @@ Statischen Server auf Port 8123 starten (`python3 -m http.server 8123 --bind 127
 - `node tests/make-wavs.mjs <ordner>` und `node tests/e2e-analysis.cjs <ordner>`
 - `node tests/e2e-countdown.cjs` (Countdown endet auf Schlag 1)
 - `node tests/e2e-triplets.cjs` (Triolen vom Tab-Leser bis zur Wiedergabe)
+- `node tests/e2e-bars.cjs` (Hinweis bei zu langen Takten, Formatversion des Tab-Lesers)
 - `node tests/e2e-flow.cjs <ordner-mit-testaudio>`
 - `node tests/e2e-tuner.cjs <ordner-mit-testaudio>`
 
