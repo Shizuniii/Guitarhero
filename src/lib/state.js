@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS = {
   countdownSeconds: 5,
   tailSeconds: 3,
   recordDuringTimer: true,
+  voiceCommands: false,
   micDeviceId: '',
   noteNames: 'intl',
   theme: 'auto',

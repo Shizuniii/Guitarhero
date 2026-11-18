@@ -16,4 +16,8 @@ noise(x); writeFileSync(`${out}/am-c.wav`, toWav(x));
 x = new Float32Array(20 * SR);
 [48, 53, 55, 60, 64].forEach((m, i) => strumChord(x, [m], 1.5 + i * 1.1, { gain: 0.35, dur: 1.0, seed: i + 1 }));
 noise(x); writeFileSync(`${out}/c-strings.wav`, toWav(x));
+// Saiten nacheinander mit Wiederholung: A sauber, D zu hoch, G-Ton während D dran ist, D sauber, dann G, B, e
+x = new Float32Array(20 * SR);
+[48, 53, 55, 52, 55, 60, 64].forEach((m, i) => strumChord(x, [m], 1.5 + i * 1.1, { gain: 0.35, dur: 1.0, seed: i + 11 }));
+noise(x); writeFileSync(`${out}/c-strings-retry.wav`, toWav(x));
 console.log('WAVs geschrieben');

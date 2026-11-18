@@ -80,12 +80,40 @@ async function setDuration(p, sec) {
     await p.evaluate(() => { location.hash = '#/frei/chord?chord=C'; });
     await p.waitForSelector('.string-check');
     await p.click('text=Saiten einzeln prüfen');
-    await p.waitForFunction(() => document.querySelectorAll('.sc-row .sc-result').length && [...document.querySelectorAll('.sc-result')].filter((e) => e.textContent.trim()).length >= 5 && !document.querySelector('.sc-row.now'), null, { timeout: 25000 }).catch(() => {});
+    // Nach dem Fehlgriff auf der D-Saite bleibt der Check dort stehen
+    await p.waitForFunction(() => /einen Bund zu hoch/.test(document.querySelector('.sc-row.now')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
     const rows = await p.$$eval('.sc-row', (els) => els.map((e) => e.textContent.replace(/\s+/g, ' ').trim()));
     console.log('   ', rows.join(' | '));
     ok('Saiten-Check: D-Saite einen Bund zu hoch', rows.some((r) => r.startsWith('D') && r.includes('einen Bund zu hoch')));
     ok('Saiten-Check: A-Saite sauber', rows.some((r) => r.startsWith('A') && r.includes('klingt sauber')));
+    ok('Saiten-Check bleibt bei der D-Saite', /^D/.test(await p.textContent('.sc-row.now').catch(() => '')));
+    ok('Saiten-Check: G-Saite noch nicht gewertet', !/[✓✗]/.test(rows.find((r) => r.startsWith('G')) || '✗'), rows.find((r) => r.startsWith('G')));
+    await p.waitForTimeout(2500);
+    ok('Weitere Töne bleiben bei der D-Saite', /^D/.test(await p.textContent('.sc-row.now').catch(() => '')));
     await p.locator('.string-check').screenshot({ path: `${OUT}/a-strings.png` });
+    // Von Hand eine andere Saite wählen
+    await p.click('.sc-row button[aria-label="e-Saite prüfen"]');
+    ok('Klick auf eine Saite wählt sie aus', /^e/.test(await p.textContent('.sc-row.now')));
+  });
+
+  await withMic('c-strings-retry.wav', async (p) => {
+    await p.evaluate(() => { location.hash = '#/frei/chord?chord=C'; });
+    await p.waitForSelector('.string-check');
+    await p.evaluate(() => {
+      window.__sc = [];
+      new MutationObserver(() => {
+        const t = document.querySelector('.string-check')?.textContent.replace(/\s+/g, ' ') || '';
+        if (window.__sc[window.__sc.length - 1] !== t) window.__sc.push(t);
+      }).observe(document.querySelector('.string-check'), { subtree: true, childList: true, characterData: true });
+    });
+    await p.click('text=Saiten einzeln prüfen');
+    await p.waitForSelector('.sc-done', { timeout: 20000 }).catch(() => {});
+    const log = await p.evaluate(() => window.__sc);
+    const done = await p.textContent('.sc-done').catch(() => '');
+    ok('Wiederholung: am Ende klingen alle Saiten sauber', /Alle Saiten klingen sauber/.test(done), done);
+    ok('Wiederholung: D-Saite war erst zu hoch', log.some((t) => /D-Saite nochmal zupfen/.test(t) && /einen Bund zu hoch/.test(t)));
+    ok('Wiederholung: G-Ton auf der D-Saite wird erkannt', log.some((t) => /klingt wie die G-Saite/.test(t)));
+    await p.locator('.string-check').screenshot({ path: `${OUT}/a-strings-retry.png` });
   });
 
   await withMic('am-c.wav', async (p) => {

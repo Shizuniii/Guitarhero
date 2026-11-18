@@ -32,6 +32,7 @@ Statischen Server auf Port 8123 starten (`python3 -m http.server 8123 --bind 127
 - `node tests/helper-knowledge.cjs` (Tab-Leser mit simuliertem Claude: Zusatzinfos, Stimmung, Formatversion)
 - `node tests/e2e-chordsearch.cjs` (Akkordsuche: genauer Treffer zuerst, Vorschlagsliste im Eingabefeld)
 - `node tests/e2e-sort.cjs` (Plan-Schritte ziehen mit Maus und Finger, Pfeiltasten)
+- `node tests/e2e-voice.cjs` (Timer per Sprache mit simulierter Spracherkennung)
 - `node tests/e2e-flow.cjs <ordner-mit-testaudio>`
 - `node tests/e2e-tuner.cjs <ordner-mit-testaudio>`
 
