@@ -162,6 +162,8 @@ export function SettingsPage({ install }) {
       <//>
       <${Field} label="Countdown vor dem Start"><${Stepper} label="Countdown" unit="Sek." value=${s.countdownSeconds} min=${0} max=${30} onChange=${(v) => updateSettings({ countdownSeconds: v })}/><//>
       <${Toggle} checked=${s.recordDuringTimer} onChange=${(v) => updateSettings({ recordDuringTimer: v })}>Beim Timer in einem Schritt mitschneiden<//>
+      <${Toggle} checked=${s.voiceCommands} onChange=${(v) => updateSettings({ voiceCommands: v })}>Timer per Sprache steuern: „Start“ und „Stopp“<//>
+      <p class="muted small">Auch „Los“ und „Weiter“ starten, „Pause“ und „Halt“ halten an. Dafür hört die Spracherkennung von Chrome oder Edge mit, solange ein Timer zu sehen ist. Der Browser schickt den Ton dazu an seinen Erkennungsdienst im Internet.</p>
       <${Field} label="Aufnahme läuft nach Timer-Ende weiter"><${Stepper} label="Nachlauf" unit="Sek." value=${s.tailSeconds} min=${0} max=${15} onChange=${(v) => updateSettings({ tailSeconds: v })}/><//>
     </section>
 
