@@ -68,6 +68,43 @@ const sw = take((x) => {
 r = analyzeChange(sw, SR, Am, C);
 check('Wechsel: 10 gezählt', r.count === 10, `count=${r.count}`);
 check('Wechsel: keine Fehler', r.issues.length === 0, kinds(r));
+// 10b. Wechsel E/A: Die leere tiefe E-Saite des E-Akkords klingt beim A nach. Das ist kein Fehler, nur ein Hinweis.
+const E = chordModel('E', [0, 2, 2, 1, 0, 0]);
+const A = chordModel('A', [-1, 0, 2, 2, 2, 0]);
+const eaTake = (strikeLowE) => take((x) => {
+  for (let k = 0; k < 10; k++) {
+    const t = 0.4 + k * 1.3;
+    if (k % 2 === 0) {
+      // E: tiefe E-Saite klingt lange, die gegriffenen Saiten verstummen beim Umgreifen
+      // Wird sie beim A neu angeschlagen, endet die alte Schwingung dort
+      strumChord(x, [40], t, { seed: 7, dur: strikeLowE ? 1.3 : 2.4 });
+      strumChord(x, mid(E).filter((m) => m !== 40), t + 0.004, { seed: k * 3 + 2, dur: 0.75 });
+    } else {
+      if (strikeLowE) strumChord(x, [40], t, { seed: 7, dur: 0.75 });
+      strumChord(x, mid(A), t + (strikeLowE ? 0.012 : 0), { seed: k * 3 + 3, dur: 0.75 });
+    }
+  }
+}, 14);
+r = analyzeChange(eaTake(false), SR, E, A);
+check('E→A Nachklang: kein Fehler „klingt mit“', !r.issues.some((i) => i.kind === 'muted-rings'), kinds(r));
+check('E→A Nachklang: Hinweis auf tiefe E-Saite vom E-Akkord, sicher', r.hints.some((h) => h.kind === 'carry' && h.string === 0 && h.from === 'E' && h.chord === 'A' && !h.maybeStruck), JSON.stringify(r.hints.map((h) => `${h.kind}@${h.string} ${h.from}→${h.chord} ${h.maybeStruck}`)));
+check('E→A Nachklang: nur Hinweise zu Saiten, die beim A nicht dazugehören', r.hints.every((h) => A.muted.some((m) => m.string === h.string)));
+r = analyzeChange(eaTake(true), SR, E, A);
+// Noch laut klingende Saite neu angeschlagen: wird kaum lauter, lässt sich nicht sicher von Nachklang trennen.
+// Dann kein Fehler, aber ein Hinweis, der beide Möglichkeiten nennt.
+check('E→A noch klingend mitgeschlagen: als unklar gemeldet', r.issues.some((i) => i.kind === 'muted-rings' && i.string === 0) || r.hints.some((h) => h.string === 0 && h.maybeStruck), `${kinds(r)} | ${JSON.stringify(r.hints.map((h) => `${h.string} ${h.maybeStruck}`))}`);
+// Frisch angeschlagen (vorher still): sicher ein Fehler
+const ecTake = take((x) => {
+  for (let k = 0; k < 10; k++) {
+    const t = 0.4 + k * 1.3;
+    if (k % 2 === 0) strumChord(x, mid(E).filter((m) => m !== 40), t, { seed: k * 3 + 2, dur: 0.75 });
+    else strumChord(x, [40, ...mid(A)], t, { seed: k * 3 + 3, dur: 0.75 });
+  }
+}, 14);
+r = analyzeChange(ecTake, SR, E, A);
+check('Tiefe E-Saite beim A frisch mitgeschlagen: Fehler', r.issues.some((i) => i.kind === 'muted-rings' && i.string === 0 && i.chord === 'A'), kinds(r));
+check('Tiefe E-Saite beim A frisch mitgeschlagen: kein Nachklang-Hinweis', !r.hints.some((h) => h.string === 0), JSON.stringify(r.hints));
+
 const live = new LiveChangeCounter(Am, C, SR);
 for (let i = 0; i < sw.length; i += 2048) live.push(sw.subarray(i, i + 2048));
 check('Live-Zähler: 10', live.switcher.count === 10, `live=${live.switcher.count}`);

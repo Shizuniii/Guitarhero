@@ -326,10 +326,13 @@ export function peakSNR(mag, sr, n, f) {
 const BODY = [90, 125];
 
 // Belege für einen Ton: nur Obertöne, die kein anderer klingender Ton erzeugt.
-export function evidence(mag, sr, n, midi, exclude = []) {
+// `ringing`: nachklingende Töne. Von ihnen werden alle Obertöne ausgeblendet, nicht nur die ersten acht,
+// sonst gilt z. B. der 15. Oberton der tiefen E-Saite als Beleg für ein B3.
+export function evidence(mag, sr, n, midi, exclude = [], ringing = []) {
   const f0 = midiToHz(midi);
   const clash = [];
   for (const o of exclude) for (let k = 1; k <= 8; k++) clash.push(midiToHz(o) * k);
+  for (const o of ringing) { const fo = midiToHz(o); for (let k = 1; fo * k <= 2600; k++) clash.push(fo * k); }
   const out = [];
   for (let h = 1; h <= 6; h++) {
     const f = f0 * h;

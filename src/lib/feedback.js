@@ -46,6 +46,21 @@ export function chordIssue(i, total, models = {}) {
         count: of(i, total),
       };
     }
+    case 'carry': {
+      const first = firstPlayed(model);
+      if (i.maybeStruck) {
+        return {
+          title: `${chord}${cap(sName(i.string))} klingt mit`,
+          causes: [`Entweder klingt sie vom ${i.from} nach oder sie wurde mit angeschlagen`, first !== null ? `Im zweiten Fall: Schlage ${i.chord ? `bei ${i.chord} ` : ''}erst ab der ${sName(first)} an` : 'Im zweiten Fall: nur die Saiten des Akkords anschlagen'],
+          count: of(i, total),
+        };
+      }
+      return {
+        title: `${chord}${cap(sName(i.string))} klingt vom ${i.from} nach`,
+        causes: ['Beim schnellen Wechseln normal, zählt nicht als Fehler. Wenn der Wechsel sitzt, kannst du die Saite beim Umgreifen mit einem freien Finger oder dem Daumen abdämpfen'],
+        count: of(i, total),
+      };
+    }
     case 'extra':
       return { title: `${chord}Ein fremder Ton klingt mit (${note(i.midi)})`, causes: ['Ein Finger greift eine Saite im falschen Bund'], count: of(i, total) };
     case 'buzz':
