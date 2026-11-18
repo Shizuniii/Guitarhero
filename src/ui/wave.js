@@ -87,6 +87,19 @@ function Verdict({ analysis, duration, playAt }) {
       })}
     </ul>`}
     ${!analysis.empty && !issues.length && html`<p class="muted small">Keine Fehler, die sich wiederholen. Einzelne Ausreißer zeigt nur der Zeitstrahl.</p>`}
+    ${(analysis.hints || []).length > 0 && html`<div class="verdict-hints">
+      <p class="muted small">Hinweise, kein Fehler:</p>
+      <ul class="verdict-issues hints">
+        ${analysis.hints.map((i) => {
+          const t = issueText(analysis, i, analysis.models || {});
+          return html`<li>
+            <p><strong>${t.title}</strong>${t.count && html`<span class="muted"> ${t.count}</span>`}</p>
+            ${t.causes.length > 0 && html`<p class="muted small">${t.causes.join('. ')}.</p>`}
+            ${i.times?.length > 0 && html`<div class="row wrap chips">${i.times.slice(0, 8).map((x) => html`<button type="button" class="chip" onClick=${() => playAt(Math.max(0, x - 0.2))}>${fmtT(x)}</button>`)}</div>`}
+          </li>`;
+        })}
+      </ul>
+    </div>`}
   </div>`;
 }
 

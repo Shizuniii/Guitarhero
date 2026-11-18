@@ -76,6 +76,19 @@ async function setDuration(p, sec) {
     await p.locator('.step-change').screenshot({ path: `${OUT}/a-change.png` });
   });
 
+  await withMic('e-a-carry.wav', async (p) => {
+    await p.evaluate(() => { location.hash = '#/frei/change?a=E&b=A'; });
+    await p.waitForSelector('.change-pair');
+    await setDuration(p, 14);
+    await p.click('.timer-actions .btn-primary');
+    await p.waitForSelector('.verdict-sum', { timeout: 40000 });
+    await p.waitForTimeout(500);
+    const verdict = (await p.textContent('.take .verdict')).replace(/\s+/g, ' ');
+    ok('Nachklang: kein Fehler „klingt mit, gehört aber nicht dazu“', !/Tiefe E-Saite klingt mit, gehört aber nicht dazu/.test(verdict), verdict.slice(0, 300));
+    ok('Nachklang: grauer Hinweis „klingt vom E nach“', /Hinweise, kein Fehler:.*Tiefe E-Saite klingt vom E nach/.test(verdict));
+    await p.locator('.take .verdict').screenshot({ path: `${OUT}/a-carry.png` });
+  });
+
   await withMic('c-strings.wav', async (p) => {
     await p.evaluate(() => { location.hash = '#/frei/chord?chord=C'; });
     await p.waitForSelector('.string-check');

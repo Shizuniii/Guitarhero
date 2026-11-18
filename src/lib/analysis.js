@@ -29,7 +29,7 @@ const inRange = (m) => m >= NOTE_LO && m <= NOTE_HI;
 
 // Bewertet einen Anschlag gegen den erwarteten Akkord.
 // Prüft einen Anschlag gegen den Akkord. Gemeldet wird nur, was sich an eindeutigen Obertönen belegen lässt.
-export function judgeStrum(mag, sr, n, chord) {
+export function judgeStrum(mag, sr, n, chord, ringing = []) {
   const exp = chord.notes;
   const all = exp.map((e) => e.midi);
   const issues = [];
@@ -37,8 +37,8 @@ export function judgeStrum(mag, sr, n, chord) {
   // 1. Saiten, die nicht angeschlagen werden sollen
   for (const m of chord.muted) {
     if (exp.some((e) => e.midi === m.openMidi)) continue;
-    if (sounds(evidence(mag, sr, n, m.openMidi, all)) === 'yes') {
-      issues.push({ kind: 'muted-rings', string: m.string });
+    if (sounds(evidence(mag, sr, n, m.openMidi, all, ringing.filter((r) => r !== m.openMidi))) === 'yes') {
+      issues.push({ kind: 'muted-rings', string: m.string, midi: m.openMidi });
       extra.push(m.openMidi);
     }
   }
@@ -46,8 +46,8 @@ export function judgeStrum(mag, sr, n, chord) {
   const missing = [];
   for (const e of exp) {
     const others = [...all.filter((m) => m !== e.midi), ...extra];
-    if (sounds(evidence(mag, sr, n, e.midi, others)) === 'no') missing.push(e);
-    else if (sounds(evidence(mag, sr, n, e.midi, others)) === null) {
+    if (sounds(evidence(mag, sr, n, e.midi, others, ringing.filter((r) => r !== e.midi))) === 'no') missing.push(e);
+    else if (sounds(evidence(mag, sr, n, e.midi, others, ringing.filter((r) => r !== e.midi))) === null) {
       // Lässt sich der Ton selbst nicht belegen, kann trotzdem ein Ersatzton eindeutig klingen.
       e.unsure = true;
     }
@@ -57,17 +57,17 @@ export function judgeStrum(mag, sr, n, chord) {
     if (e.fret === 0 || !(missing.includes(e) || e.unsure)) continue;
     const others = [...all.filter((x) => x !== e.midi), ...extra];
     const cands = [];
-    if (!all.includes(e.openMidi)) cands.push({ m: e.openMidi, issue: { kind: 'open', string: e.string, fret: e.fret } });
+    if (!all.includes(e.openMidi)) cands.push({ m: e.openMidi, issue: { kind: 'open', string: e.string, fret: e.fret, midi: e.openMidi } });
     for (const d of [1, -1, 2, -2]) {
       const m = e.midi + d;
       if (m === e.openMidi || all.includes(m) || chord.muted.some((x) => x.openMidi === m)) continue;
-      cands.push({ m, issue: { kind: 'fret', string: e.string, fret: e.fret, delta: d } });
+      cands.push({ m, issue: { kind: 'fret', string: e.string, fret: e.fret, delta: d, midi: m } });
     }
     // Ließ sich der erwartete Ton selbst nicht prüfen, muss der Ersatzton doppelt belegt sein.
     const strict = !missing.includes(e);
     let best = null;
     for (const c of cands) {
-      const ev = evidence(mag, sr, n, c.m, others);
+      const ev = evidence(mag, sr, n, c.m, others, ringing.filter((r) => r !== c.m));
       if (sounds(ev) !== 'yes') continue;
       const top = Math.max(...ev.map((v) => v.snr));
       if (strict && !(top >= 40 && ev.filter((v) => v.snr >= 15).length >= 2)) continue;
@@ -127,19 +127,95 @@ function strumSegments(x, sr, onsets, duration) {
   return out.filter((s) => s.level >= typical * 0.2);
 }
 
+// Nachklang: Ein Ton, der beim Anschlag schon klang und dabei nicht neu angeschlagen wurde.
+// Merkmal: Ein frisch angeschlagener Ton wird lauter, vor allem in den hohen Obertönen, die beim Nachklingen
+// zuerst verschwinden. Ein nachklingender Ton wird in keinem Oberton deutlich lauter.
+const CARRY_RATIO = 2; // ab hier sicher neu angeschlagen
+const CARRY_SURE = 1.3; // bis hier sicher nur Nachklang, dazwischen unklar
+function partialPeaks(mag, sr, n, midi, exclude) {
+  const ev = evidence(mag, sr, n, midi, exclude);
+  const hz = sr / n;
+  const f0 = 440 * 2 ** ((midi - 69) / 12);
+  return ev.map(({ h, snr }) => {
+    const k = (f0 * h) / hz;
+    let peak = 0;
+    for (let i = Math.floor(k - 1); i <= Math.ceil(k + 1); i++) peak = Math.max(peak, mag[i] || 0);
+    return { h, snr, peak };
+  });
+}
+
+// null, wenn sich das nicht messen lässt (zu kurzer Abstand zum vorigen Anschlag, keine freien Obertöne)
+export function ringsOn(x, sr, seg, prevStart, midi, exclude) {
+  const onset = seg.t0 + 0.03;
+  const beforeEnd = onset - 0.015;
+  const beforeStart = Math.max(prevStart ?? -Infinity, beforeEnd - 0.12, 0);
+  const len = beforeEnd - beforeStart;
+  if (len < 0.05) return null;
+  const n = nextPow2(sr * 0.17);
+  const L = Math.round(len * sr);
+  const before = partialPeaks(magnitude(x, Math.round(beforeStart * sr), L, n), sr, n, midi, exclude);
+  const after = partialPeaks(magnitude(x, Math.round((seg.start - 0.03) * sr), L, n), sr, n, midi, exclude);
+  if (!before.length) return null;
+  const floor = Math.max(...before.map((p) => p.peak)) * 0.05;
+  const ratio = Math.max(...after.map((p, i) => p.peak / Math.max(before[i].peak, floor, 1e-9)));
+  return { wasRinging: sounds(before) === 'yes', ratio };
+}
+
 function evaluateStrums(x, sr, segs, chordAt, set) {
   const ratios = [];
+  let prev = null;
   const results = segs.map((s) => {
     const chord = chordAt(s.start);
+    const before = prev;
+    prev = { chord, start: s.start };
     if (!chord) return { ...s, chord: null, issues: [], score: null };
+    const own = chord.notes.map((e) => e.midi);
+    const prevChord = before?.chord && before.chord.name !== chord.name ? before.chord : null;
+    const carry = [];
+    // null: neu angeschlagen oder nicht messbar. Sonst { sure }: sicher nur Nachklang oder unklar.
+    const memo = new Map();
+    const carried = (midi) => {
+      if (!memo.has(midi)) {
+        const r = ringsOn(x, sr, s, before?.start, midi, own.filter((m) => m !== midi));
+        memo.set(midi, !r || !r.wasRinging || r.ratio >= CARRY_RATIO ? null : { sure: r.ratio < CARRY_SURE });
+      }
+      return memo.get(midi);
+    };
+    // Töne des vorigen Akkords auf Saiten, die jetzt nicht dazugehören, und leere Saiten, die nicht dazugehören:
+    // Klingen sie nur nach, werden ihre Obertöne bei der Prüfung ausgeblendet.
+    const suspects = [...new Set([
+      ...chord.muted.map((m) => m.openMidi),
+      ...(prevChord ? prevChord.notes.filter((p) => chord.muted.some((m) => m.string === p.string)).map((p) => p.midi) : []),
+    ])].filter((m) => !own.includes(m));
+    const ringing = suspects.filter((m) => carried(m));
     const { mag, n } = notesAt(x, sr, s.start, s.len, set);
-    const judged = judgeStrum(mag, sr, n, chord);
+    const judged = judgeStrum(mag, sr, n, chord, ringing);
     if (!judged) return { ...s, chord: null, issues: [], score: null };
-    const issues = judged.map((i) => ({ ...i, chord: chord.name }));
+    const mutedString = (string) => chord.muted.some((m) => m.string === string);
+    // Fehler, deren Ton schon vor dem Anschlag klang und nicht sicher neu angeschlagen wurde, zählen nicht.
+    const kept = judged.filter((i) => {
+      if (i.midi === undefined) return true;
+      const c = carried(i.midi);
+      if (!c) return true;
+      // Hinweis nur für Saiten, die beim neuen Akkord nicht dazugehören. Bei gegriffenen Saiten
+      // endet der alte Ton ohnehin beim Umgreifen, dort reicht es, den unsicheren Fehler wegzulassen.
+      if (prevChord && i.kind === 'muted-rings') carry.push({ kind: 'carry', string: i.string, midi: i.midi, from: prevChord.name, sure: c.sure });
+      return false;
+    });
+    // Töne des vorigen Akkords auf Saiten, die jetzt nicht dazugehören (z. B. gegriffen weiterklingend)
+    if (prevChord) {
+      for (const p of prevChord.notes) {
+        if (own.includes(p.midi) || !mutedString(p.string) || carry.some((c) => c.string === p.string)) continue;
+        const c = carried(p.midi);
+        if (c) carry.push({ kind: 'carry', string: p.string, midi: p.midi, from: prevChord.name, sure: c.sure });
+      }
+    }
+    const issues = kept.map((i) => ({ ...i, chord: chord.name }));
+    const hints = carry.map((c) => ({ ...c, chord: chord.name }));
     const short = nextPow2(sr * 0.15);
     const ratio = highBandRatio(magnitude(x, Math.round((s.start - 0.01) * sr), Math.min(short, Math.round(0.14 * sr)), short), sr, short);
     ratios.push(ratio);
-    return { ...s, chord: chord.name, issues, ratio };
+    return { ...s, chord: chord.name, issues, hints, ratio };
   });
   const typicalRatio = quantile(ratios, 0.25);
   for (const r of results) {
@@ -258,6 +334,16 @@ export class LiveChangeCounter {
   }
 }
 
+// Nachklang-Hinweise zusammenfassen. `maybeStruck`: meist unklar, ob nur Nachklang oder mitgeschlagen.
+function carryHints(judged) {
+  const all = judged.flatMap((r) => r.hints || []);
+  return aggregate(judged.map((r) => ({ ...r, issues: r.hints || [] })), judged.length).map((h) => {
+    const same = all.filter((x) => issueKey(x) === h.key);
+    const { sure, ...rest } = h;
+    return { ...rest, maybeStruck: same.filter((x) => !x.sure).length * 2 > same.length };
+  });
+}
+
 export function analyzeChange(x, sr, a, b, { profile = 'nylon' } = {}) {
   const set = noteTemplates(profile);
   const model = changeModel(a, b);
@@ -295,6 +381,7 @@ export function analyzeChange(x, sr, a, b, { profile = 'nylon' } = {}) {
     kind: 'change', duration, count: switcher.count, switches: switcher.switches, chords: [a.name, b.name],
     segments: judged.map((r) => ({ t0: r.t0, t1: r.t1, score: r.score, chord: r.chord, issues: r.issues.map((i) => i.kind) })),
     issues: [...aggregate(judged, judged.length), ...tuningIssues],
+    hints: carryHints(judged),
     total: judged.length, clean: judged.filter((r) => r.score >= 0.85).length,
   };
 }
