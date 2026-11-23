@@ -2,9 +2,9 @@
 // und Justins Grade-1-Modulen. Deine eigenen Pläne bleiben unberührt.
 import { html, useEffect, useState } from '../../vendor/htm-preact.js';
 import { dayKey, fmtTime, useStore } from '../lib/core.js';
-import { COURSE, MODULES, TEMPLATES, WEEK } from '../lib/lernplan-data.js';
+import { COURSE, MODULES, SONG_IDEAS, START_FOCUS, TEMPLATES, WEEK } from '../lib/lernplan-data.js';
 import {
-  buildSession, coverage, currentModule, estimateSeconds, moduleState, newestChord, nextLesson, stepSeconds, unitIndex,
+  buildSession, coverage, currentModule, estimateSeconds, firstOpenModule, moduleState, newestChord, nextLesson, OPEN_WEIGHT, stepSeconds, unitIndex,
 } from '../lib/lernplan.js';
 import { go } from '../lib/router.js';
 import { patterns, plans, records, scores, settings, STEP_TYPES, stepTitle, updateSettings } from '../lib/state.js';
@@ -70,11 +70,13 @@ function Tabs({ tab }) {
 export function LernplanPage({ tab = '' }) {
   const ctx = useLernCtx();
   const module = currentModule({ ...ctx, checkBefore: ctx.before });
+  const open = firstOpenModule({ ...ctx, checkBefore: ctx.before });
+  const range = open && open.n < module.n ? `Modul ${open.n} bis ${module.n} offen, die Einheit folgt Modul ${module.n}` : `Modul ${module.n}: ${module.title}`;
   return html`<div class="page lp-page">
     <header class="lp-head">
       <div>
         <h1>Lernplan</h1>
-        <p class="muted">${COURSE.title}, Modul ${module.n}: ${module.title}</p>
+        <p class="muted">${COURSE.title}, ${range}</p>
       </div>
       <${Tabs} tab=${tab}/>
     </header>
@@ -132,7 +134,7 @@ function HeuteTab({ ctx }) {
         </div>
         ${lesson && html`<section class="lp-panel lp-lesson">
           <div>
-            <p class="lp-kicker">Nächste Lektion, ${session.module.n}.${session.module.lessons.indexOf(lesson) + 1}</p>
+            <p class="lp-kicker">Nächste Lektion, ${lesson.num}</p>
             <h3>${lesson.title}</h3>
             ${lesson.sum && html`<p class="muted">${lesson.sum}</p>`}
           </div>
@@ -142,6 +144,7 @@ function HeuteTab({ ctx }) {
             <${Button} icon="check" onClick=${() => { updateLp({ lessons: { [lesson.id]: true } }); toast(`${lesson.title} abgehakt`, 'good'); }}>Gesehen<//>
           </div>
         </section>`}
+        ${!(ctx.lp.songList || []).length && html`<${SongCard} module=${session.module}/>`}
       </div>
       <div class="lp-panel">
         <h3>Ablauf</h3>
@@ -202,6 +205,54 @@ function Upcoming({ ctx, session }) {
   </section>`;
 }
 
+function addSong(lp, name) {
+  const clean = name.trim();
+  if (!clean) return false;
+  const list = (lp.songList || []).filter((x) => x.toLowerCase() !== clean.toLowerCase());
+  updateLp({ songList: [...list, clean] });
+  toast(`${clean} kommt ab jetzt in die Song-Arbeit`, 'good');
+  return true;
+}
+
+function SongInput({ lp }) {
+  const [name, setName] = useState('');
+  const submit = (e) => {
+    e.preventDefault();
+    if (addSong(lp, name)) setName('');
+  };
+  return html`<form class="row wrap lp-songform" onSubmit=${submit}>
+    <input type="text" placeholder="Songname, z. B. Eleanor Rigby" value=${name} onInput=${(e) => setName(e.currentTarget.value)} aria-label="Song hinzufügen"/>
+    <${Button} type="submit" icon="plus" disabled=${!name.trim()}>Song hinzufügen<//>
+  </form>`;
+}
+
+function SongCard({ module: m }) {
+  const lp = useStore(settings, (s) => s.lernplan);
+  const idea = SONG_IDEAS[m.n];
+  const lesson = m.lessons.find((l) => l.id === idea.lesson);
+  return html`<section class="lp-panel lp-songcard stack">
+    <p class="lp-kicker">Noch kein Song</p>
+    <p>Justin plant in jeder Einheit Zeit für Songs ein. Solange du keinen hast, gehen diese 5 Minuten an 4 weitere Wechsel.</p>
+    <p class="small muted">${idea.text}</p>
+    ${lesson && html`<a class="small" href=${lesson.url} target="_blank" rel="noopener">${lesson.title} öffnen</a>`}
+    <${SongInput} lp=${lp}/>
+  </section>`;
+}
+
+function SongList({ ctx, module: m }) {
+  const list = ctx.lp.songList || [];
+  const remove = (name) => updateLp({ songList: list.filter((x) => x !== name) });
+  return html`<section class="lp-panel stack">
+    <h3>Deine Songs</h3>
+    <p class="small muted">Songs, die du gerade übst. Sie kommen reihum in die Song-Arbeit, jede Einheit einer. Ohne Song gehen die 5 Minuten an 4 weitere Wechsel. ${SONG_IDEAS[m.n].text}</p>
+    ${list.length > 0 && html`<ul class="lp-songs">${list.map((name) => html`<li>
+      <span>${name}</span>
+      <${Button} size="sm" icon="trash" aria-label=${`${name} entfernen`} onClick=${() => remove(name)}>Entfernen<//>
+    </li>`)}</ul>`}
+    <${SongInput} lp=${ctx.lp}/>
+  </section>`;
+}
+
 // ---------- Plan ----------
 
 function describePart(part, m, lp) {
@@ -210,27 +261,38 @@ function describePart(part, m, lp) {
     const l = m.lessons.findIndex((x) => x.id === id);
     return l >= 0 ? `${m.n}.${l + 1}` : id;
   };
-  switch (part.kind) {
-    case 'stretch': return ['2′', 'Finger Stretch', 'Dein Plan'];
-    case 'perfect':
-      return part.from === 'new'
-        ? ['1′', `Chord Perfect auf dem neuesten Akkord (${newest})`, `Justin, Modul ${m.n}`]
-        : [`${part.n || 1} × 1′`, `Chord Perfect, deine anderen Akkorde reihum oder dein Problem-Akkord`, 'Dein Plan'];
-    case 'omc':
-      if (part.from === 'new') return [`${part.n} × 1′`, `Wechsel mit ${newest}, reihum`, `Justin, Modul ${m.n}`];
-      if (part.from === 'weak') return [`${part.n} × 1′`, 'Deine schwächsten Wechsel unter 30 pro Minute', 'Justin, Modul 7'];
-      return [`${part.n} × 1′`, m.n >= 7 ? 'Weitere Wechsel aller acht Akkorde, reihum' : 'Weitere Wechsel aus deinem Plan, reihum', 'Dein Plan'];
-    case 'strum': {
-      let text = part.first ? `Strumming: ${part.first} immer, dazu deine Muster reihum` : 'Strumming, deine Muster reihum';
-      if (part.alt) text += `. Ab Lektion ${lesson(part.alt.unlock)} jede zweite Einheit stattdessen 2′ 6/8`;
-      return [`${part.n} × 1′`, text, 'Dein Plan'];
+  const base = (p) => {
+    switch (p.kind) {
+      case 'stretch': return ['2′', 'Finger Stretch', 'Dein Plan'];
+      case 'perfect':
+        return p.from === 'new'
+          ? ['1′', `Chord Perfect auf dem neuesten Akkord (${newest})`, `Justin, Modul ${m.n}`]
+          : [`${p.n || 1} × 1′`, 'Chord Perfect, deine anderen Akkorde reihum oder dein Problem-Akkord', 'Dein Plan'];
+      case 'omc':
+        if (p.from === 'new') return [`${p.n} × 1′`, `Wechsel mit ${newest}, reihum`, `Justin, Modul ${m.n}`];
+        if (p.from === 'weak') return [`${p.n} × 1′`, 'Deine schwächsten Wechsel unter 30 pro Minute', 'Justin, Modul 7'];
+        return [`${p.n} × 1′`, m.n >= 7 ? 'Weitere Wechsel aller acht Akkorde, reihum' : 'Weitere Wechsel aus deinem Plan, reihum', 'Dein Plan'];
+      case 'strum':
+        return [`${p.n} × 1′`, p.first ? `Strumming: ${p.first} immer, dazu deine Muster reihum` : 'Strumming, deine Muster reihum', 'Dein Plan'];
+      case 'picking': return ['1′', 'Wechselschlag auf einer Saite', `Justin, Modul ${m.n}`];
+      case 'sixeight': return ['2′', '6/8-Strumming mit Metronom', `Justin, Modul ${m.n}`];
+      case 'riff': return ['ca. 2′', p.focus ? `Riff: ${p.focus} jede zweite Einheit, sonst deine anderen Riffs reihum` : 'Riff, deine Riffs reihum', p.focus ? `Justin, Modul ${m.n}` : 'Dein Plan'];
+      case 'song': return [`${p.min}′`, 'Song-Arbeit, deine Songs reihum', `Justin, Modul ${m.n}`];
+      default: return ['', p.kind, ''];
     }
-    case 'picking': return ['2′', `Wechselschlag, ab Lektion ${lesson(part.unlock)}. Vorher 2 weitere Wechsel`, `Justin, Modul ${m.n}`];
-    case 'sixeight': return ['2′', '6/8-Strumming mit Metronom', `Justin, Modul ${m.n}`];
-    case 'riff': return ['ca. 2′', part.focus ? `Riff: ${part.focus} jede zweite Einheit, sonst deine anderen Riffs reihum` : 'Riff, deine Riffs reihum', part.focus ? `Justin, Modul ${m.n}` : 'Dein Plan'];
-    case 'song': return [`${part.min}′`, 'Song-Arbeit', `Justin, Modul ${m.n}`];
-    default: return ['', part.kind, ''];
+  };
+  const [min, text, src] = base(part);
+  const extra = [];
+  const lower = (t) => t.charAt(0).toLowerCase() + t.slice(1);
+  if (part.unlock) {
+    const before = part.instead ? base(part.instead) : null;
+    extra.push(`ab Lektion ${lesson(part.unlock)}${before ? `, vorher ${before[0]} ${lower(before[1].split(',')[0])}` : ''}`);
   }
+  if (part.fallback) {
+    const fb = base(part.fallback[0]);
+    extra.push(`ohne Song ${fb[0]} ${lower(fb[1].split(',')[0])}`);
+  }
+  return [min, extra.length ? `${text} (${extra.join('; ')})` : text, src];
 }
 
 function CheckItem({ c, lp }) {
@@ -252,12 +314,27 @@ function CheckItem({ c, lp }) {
   </li>`;
 }
 
+function ExerciseItem({ e }) {
+  const toggle = (ev) => updateLp({ ex: { [e.id]: ev.currentTarget.checked } });
+  return html`<li class=${e.pass ? 'pass' : ''}>
+    <label>
+      <input type="checkbox" checked=${e.manual || Boolean(e.auto?.pass)} disabled=${Boolean(e.auto?.pass)} onChange=${toggle}/>
+      <span>
+        ${e.label}
+        ${e.auto && html`<small class=${e.auto.pass ? 'lp-good' : ''}>${e.auto.v === null ? 'Noch nicht gemessen. Ab 30 pro Minute sitzt der Wechsel.' : `Bester Wert ${Math.round(e.auto.v)} pro Minute${e.auto.pass ? ', sitzt' : ', Ziel 30'}`}</small>`}
+      </span>
+    </label>
+  </li>`;
+}
+
 function Stage({ m, ctx, current }) {
-  const st = moduleState(m, ctx);
-  const isCurrent = m.n === current.n;
-  const state = st.done ? 'erledigt' : isCurrent ? 'aktuell' : 'später';
+  const st = moduleState({ ...m }, ctx);
+  const isFocus = m.n === current.n;
+  const active = !st.done && m.n <= current.n;
+  const state = st.done ? 'erfüllt' : isFocus ? 'Schwerpunkt' : active ? 'offen' : 'später';
   const tpl = TEMPLATES[m.n];
-  return html`<details class=${`lp-stage ${isCurrent ? 'cur' : ''}`} open=${isCurrent}>
+  const routineTitle = m.lessons.find((l) => l.url === m.routine.url)?.title || `Module ${m.n} Practice`;
+  return html`<details class=${`lp-stage ${active ? 'cur' : ''}`} open=${active}>
     <summary>
       <span class="lp-num">${m.n}</span>
       <span class="lp-stage-t">
@@ -265,31 +342,37 @@ function Stage({ m, ctx, current }) {
         <small>${m.de}</small>
       </span>
       <span class="lp-pills">
-        <span class=${`lp-pill ${st.done ? 'g' : isCurrent ? 'a' : ''}`}>${state}</span>
+        <span class=${`lp-pill ${st.done ? 'g' : active ? 'a' : ''}`}>${state}</span>
         <span class="lp-pill">Lektionen ${st.lessonsDone}/${st.lessonsTotal}</span>
-        <span class="lp-pill">Prüfpunkte ${st.checksDone}/${st.checksTotal}</span>
+        <span class="lp-pill">Ziele ${st.checksDone}/${st.checksTotal}</span>
+        ${st.exTotal > 0 && html`<span class="lp-pill">Übungen ${st.exDone}/${st.exTotal}</span>`}
       </span>
     </summary>
     <div class="lp-stage-body">
       <div>
-        <h4>Prüfpunkte</h4>
-        <p class="small muted">${m.n === 7 ? 'Justins Kriterien aus „How to PASS Grade 1“.' : `Justins Ziele für Modul ${m.n}.`} Weiter geht es, wenn alle erfüllt und alle Lektionen gesehen sind. Wo es Messwerte gibt, prüft Guitarhero selbst.</p>
+        <h4>Justins Ziele</h4>
+        <p class="small muted">${m.n === 7 ? 'Die Kriterien aus „How to PASS Grade 1“.' : `Aus „${routineTitle}“.`} Wo es Messwerte gibt, prüft Guitarhero selbst.</p>
         <ul class="lp-checks">${st.checks.map((c) => html`<${CheckItem} c=${c} lp=${ctx.lp}/>`)}</ul>
         ${m.note && html`<p class="small">${m.note}</p>`}
+        ${st.exTotal > 0 && html`
+          <h4>Deine Übungen aus Modul ${m.n}</h4>
+          <p class="small muted">Hak ab, was sauber klingt. Wechsel zählen ab 30 pro Minute von selbst. Was sitzt, kommt seltener dran.</p>
+          <ul class="lp-checks">${st.exercises.map((e) => html`<${ExerciseItem} key=${e.id} e=${e}/>`)}</ul>`}
       </div>
       <div>
-        <h4>Ablauf einer Einheit</h4>
-        <ul class="lp-parts">
-          ${tpl.normal.map((p) => {
-            const [min, text, src] = describePart(p, m, ctx.lp);
-            return html`<li><span class="lp-min">${min}</span><span>${text}</span><span class=${`lp-src ${src === 'Dein Plan' ? 'own' : ''}`}>${src}</span></li>`;
-          })}
-        </ul>
+        ${tpl ? html`
+          <h4>Ablauf einer Einheit</h4>
+          <ul class="lp-parts">
+            ${tpl.normal.map((p) => {
+              const [min, text, src] = describePart(p, m, ctx.lp);
+              return html`<li><span class="lp-min">${min}</span><span>${text}</span><span class=${`lp-src ${src === 'Dein Plan' ? 'own' : ''}`}>${src}</span></li>`;
+            })}
+          </ul>` : html`
+          <h4>Ablauf</h4>
+          <p class="small muted">Die Übungen aus Modul ${m.n} laufen in der Einheit von Modul ${Math.max(START_FOCUS, current.n)} mit, reihum und öfter, solange sie nicht sitzen.</p>`}
         <h4>Justins Routine zum Vergleich</h4>
-        ${m.routine.items
-          ? html`<ul class="lp-ref">${m.routine.items.map((t) => html`<li>${t}</li>`)}</ul>`
-          : html`<p class="small muted">Die Seite „Module ${m.n} Practice“ ließ sich nicht auslesen. Der Ablauf oben folgt deshalb den Lektionen von Modul ${m.n}.</p>`}
-        <a class="small" href=${m.routine.url} target="_blank" rel="noopener">Module ${m.n} Practice öffnen</a>
+        <ul class="lp-ref">${m.routine.items.map((t) => html`<li>${t}</li>`)}</ul>
+        <a class="small" href=${m.routine.url} target="_blank" rel="noopener">${routineTitle} öffnen</a>
       </div>
     </div>
   </details>`;
@@ -305,15 +388,11 @@ function chordChoices(ctx) {
 function PlanTab({ ctx, current }) {
   const n = unitIndex(ctx.lp, ctx.today);
   const cov = coverage({ ...ctx, before: ctx.before }, { from: n, count: 21, module: current });
-  const name = (row) => {
-    if (row.label) return row.label;
-    if (row.group === 'Strums') return patterns.find(row.id.slice('lp-strum-'.length))?.name || 'Muster';
-    if (row.group === 'Riffs') return scores.find(row.id.slice('lp-riff-'.length))?.title || 'Riff';
-    return row.id;
-  };
   const groups = [...new Set(cov.rows.map((r) => r.group))];
   return html`
     <section class="stack">${MODULES.map((m) => html`<${Stage} key=${m.n} m=${m} ctx=${ctx} current=${current}/>`)}</section>
+
+    <${SongList} ctx=${ctx} module=${current}/>
 
     <section class="lp-panel stack">
       <h3>Dein Problem-Akkord</h3>
@@ -326,11 +405,11 @@ function PlanTab({ ctx, current }) {
 
     <section class="lp-panel stack">
       <h3>Wie oft deine Übungen drankommen</h3>
-      <p class="small muted">In den nächsten ${cov.count} Einheiten von Modul ${current.n}, ausgerechnet mit derselben Regel wie die Einheit für heute. Die Übungen kommen aus deinen Plänen. Nimmst du dort etwas dazu, ist es hier auch dabei.</p>
+      <p class="small muted">In den nächsten ${cov.count} Einheiten, ausgerechnet mit derselben Regel wie die Einheit für heute. M steht für das Modul, ✓ für „sitzt“. Die Übungen kommen aus deinen Plänen. Nimmst du dort etwas dazu, ist es hier auch dabei.</p>
       <div class="lp-cov">
         ${groups.map((g) => html`<div>
           <h4>${g}</h4>
-          <ul>${cov.rows.filter((r) => r.group === g).map((r) => html`<li class=${r.times ? '' : 'zero'}><span>${name(r)}</span><b>${r.times} ×</b></li>`)}</ul>
+          <ul>${cov.rows.filter((r) => r.group === g).map((r) => html`<li class=${r.times ? '' : 'zero'}><span>${r.label}${r.pass ? html` <span class="lp-good" title="sitzt">✓</span>` : ''}${r.module ? html` <small class="muted">M${r.module}</small>` : ''}</span><b>${r.times} ×</b></li>`)}</ul>
         </div>`)}
         ${cov.added.length > 0 && html`<div>
           <h4>Vom Lernplan ergänzt</h4>
@@ -346,9 +425,10 @@ function PlanTab({ ctx, current }) {
         <li><b>Zeit:</b> ${WEEK.minutes} Minuten am Tag, im Notfall ${WEEK.minimum}. So steht es in deinem Wochenplan (${WEEK.slots}).</li>
         <li><b>Inhalt:</b> Geübt wird, was in deinen Plänen steht. Deine eigenen Pläne ändert der Lernplan nicht.</li>
         <li><b>Schwerpunkt:</b> Justins Module geben vor, welcher Akkord neu ist, was neu dazukommt und wann es weitergeht. Seine Routinen dienen als Vorlage, nicht als Vorschrift.</li>
-        <li><b>Song-Arbeit:</b> Justin plant 10 von 20 Minuten für Songs ein. Hier sind es 5, weil deine Pläne mehr Technik enthalten. In Modul 7 zählen Songs für den Abschluss.</li>
-        <li><b>Reihenfolge:</b> Alles, was nicht täglich drankommt, läuft reihum. Ein Lesezeichen wandert pro Einheit weiter, damit jede Übung gleich oft kommt.</li>
-        <li><b>Weiterkommen:</b> Ein Modul ist fertig, wenn alle Lektionen abgehakt und alle Prüfpunkte erfüllt sind. Akkordwechsel prüft Guitarhero mit deinen gemessenen Rekorden.</li>
+        <li><b>Song-Arbeit:</b> Justin plant 10 von 20 Minuten für Songs ein. Hier sind es 5, weil deine Pläne mehr Technik enthalten. Ohne Song gehen sie an 4 weitere Wechsel, weil dort dein Abstand zum Ziel gemessen ist. Für die Prüfpunkte in Modul 5 und 6 brauchst du je einen Song, für Grade 1 fünf.</li>
+        <li><b>Module:</b> Jede deiner Übungen gehört zu dem Modul, in dem Justin sie einführt, zum Beispiel Am und Em zu Modul 3 oder Sunshine Of Your Love zu Modul 4. Ein Wechsel gehört zum Modul des späteren Akkords.</li>
+        <li><b>Reihenfolge:</b> Alles, was nicht täglich drankommt, läuft reihum. Übungen, die noch nicht sitzen, kommen ${OPEN_WEIGHT}-mal so oft wie solche, die sitzen. Was sitzt, bleibt zur Wiederholung dabei.</li>
+        <li><b>Weiterkommen:</b> Ein Modul ist erfüllt, wenn seine Lektionen abgehakt sind, Justins Ziele erreicht sind und alle deine Übungen daraus sitzen. Modul 6 kommt erst, wenn Modul 1 bis 5 erfüllt sind. Akkordwechsel prüft Guitarhero mit deinen gemessenen Rekorden.</li>
         <li><b>Lektionen:</b> Wann du die nächste Lektion schaust, entscheidest du. Am Lektionstag ersetzt sie den größten Teil der Übungszeit. Justin sagt dazu: keine Eile, in einem Tempo, das sich gut anfühlt.</li>
       </ol>
       <p class="small muted">Quellen: <a href=${COURSE.url} target="_blank" rel="noopener">Beginner Grade 1</a>, die Lektionsseiten im Kurs-Reiter und dein Wochenplan. Stand der Kursdaten: November 2026.</p>
@@ -361,22 +441,22 @@ function PlanTab({ ctx, current }) {
 function KursTab({ ctx, current }) {
   const lp = ctx.lp;
   const toggle = (id, on) => updateLp({ lessons: { [id]: on } });
+  const next = nextLesson(current, lp);
   return html`
-    <p class="muted">${COURSE.doneBefore} hast du laut dir abgeschlossen. Hier geht es ab Modul 5 weiter.</p>
+    <p class="muted">Die Lektionen von Modul 1 bis 4 sind als gesehen eingetragen, weil du sie laut dir durch hast. Ihre Übungen prüft der Plan-Reiter.</p>
     ${MODULES.map((m) => {
-      const next = nextLesson(m, lp);
       return html`<section class="lp-kurs">
         <header class="lp-kurs-h">
           <span class="lp-num">${m.n}</span>
           <div>
             <h3>${m.title}</h3>
-            <p class="small muted">${m.de} · <a href=${m.url} target="_blank" rel="noopener">Modul bei JustinGuitar</a></p>
+            <p class="small muted">${m.de}${m.url && html` · <a href=${m.url} target="_blank" rel="noopener">Modul bei JustinGuitar</a>`}</p>
           </div>
         </header>
         <ol class="lp-lessons">
           ${m.lessons.map((l, i) => {
             const done = Boolean(lp.lessons?.[l.id]);
-            const isNext = m.n === current.n && next?.id === l.id;
+            const isNext = next?.id === l.id;
             return html`<li class=${`${done ? 'done' : ''} ${isNext ? 'next' : ''}`}>
               <input type="checkbox" checked=${done} aria-label=${`${l.title} gesehen`} onChange=${(e) => toggle(l.id, e.currentTarget.checked)}/>
               <span class="lp-n">${m.n}.${i + 1}</span>
@@ -404,6 +484,7 @@ export function LernRunPage({ index, setDockSlot }) {
     const keep = { ...patch };
     delete keep.hint;
     delete keep.link;
+    delete keep.label;
     updateLp({ overrides: { [step.id]: keep } });
   };
   return html`<${StepRunner} plan=${plan} index=${index} setDockSlot=${setDockSlot}
