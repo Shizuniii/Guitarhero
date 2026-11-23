@@ -81,6 +81,7 @@ const FAKE = () => {
   await p.click('.voice-toggle');
   ok('Ausschalten', /Aus/.test(await p.textContent('.voice-toggle')));
   await p.click('.voice-toggle');
+  await p.waitForTimeout(400); // Speichern abwarten, sonst bricht das Neuladen den Schreibvorgang ab
   await p.reload();
   await p.waitForSelector('.voice-toggle');
   await p.waitForFunction(() => /hört zu/.test(document.querySelector('.voice-toggle').textContent));
