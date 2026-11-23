@@ -41,4 +41,13 @@ if (w) {
   failed += pass ? 0 : 1;
   console.log(`${pass ? 'OK  ' : 'FAIL'} Am und C: ${r.count} Wechsel gezählt`);
 }
+// Aufnahmen mit nur C, als Wechsel Am/C ausgewertet: Es darf (fast) kein Wechsel entstehen.
+for (const name of ['C sauber', 'C mit gedämpfter A-Saite', 'C mit tiefer E-Saite', 'C mit falschem Bund']) {
+  const x = load(name);
+  if (!x) continue;
+  const r = analyzeChange(x, SR, Am, C);
+  const pass = r.count <= 1;
+  failed += pass ? 0 : 1;
+  console.log(`${pass ? 'OK  ' : 'FAIL'} ${name} als Am/C: ${r.count} Wechsel (nur C gespielt)`);
+}
 assert.equal(failed, 0, `${failed} Fälle falsch`);

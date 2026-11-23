@@ -323,7 +323,7 @@ export function peakSNR(mag, sr, n, f) {
 }
 
 // Der Korpus einer Konzertgitarre schwingt um 90–125 Hz von selbst mit. Dort ist ein Ton kein Beweis.
-const BODY = [90, 125];
+export const BODY = [90, 125];
 
 // Belege für einen Ton: nur Obertöne, die kein anderer klingender Ton erzeugt.
 // `ringing`: nachklingende Töne. Von ihnen werden alle Obertöne ausgeblendet, nicht nur die ersten acht,

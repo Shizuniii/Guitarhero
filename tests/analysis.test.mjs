@@ -68,6 +68,29 @@ const sw = take((x) => {
 r = analyzeChange(sw, SR, Am, C);
 check('Wechsel: 10 gezählt', r.count === 10, `count=${r.count}`);
 check('Wechsel: keine Fehler', r.issues.length === 0, kinds(r));
+// 10a. Zählung bei schnellen Wechseln: Der Akkord klingt nur kurz, weil sofort umgegriffen wird.
+const quick = (A, B, ring) => take((x) => {
+  for (let k = 0; k <= 20; k++) strumChord(x, mid(k % 2 ? B : A), 0.5 + k * 0.5, { seed: k + 1, dur: ring, gain: 0.25 });
+}, 12);
+for (const [A, B] of [[chordModel('G', [3, 2, 0, 0, 0, 3]), chordModel('D', [-1, -1, 0, 2, 3, 2])], [chordModel('E', [0, 2, 2, 1, 0, 0]), chordModel('A', [-1, 0, 2, 2, 2, 0])]]) {
+  r = analyzeChange(quick(A, B, 0.12), SR, A, B);
+  check(`Schnelle Wechsel ${A.name}/${B.name} (120 pro Minute, Akkord klingt 0,12 s): mindestens 18 von 20`, r.count >= 18, `count=${r.count}`);
+}
+// 10a'. Der Korpus der Konzertgitarre schwingt bei jedem Anschlag um 90–125 Hz mit. Das darf ein C nicht zu Am machen.
+const bodyC = take((x) => {
+  for (let k = 0; k < 12; k++) {
+    const t = 0.4 + k * 0.8;
+    strumChord(x, mid(C), t, { seed: k + 3, dur: 0.7 });
+    for (let i = 0; i < 0.4 * SR; i++) x[Math.round(t * SR) + i] += 0.12 * Math.exp(-i / (0.08 * SR)) * Math.sin((2 * Math.PI * 108 * i) / SR);
+  }
+}, 10);
+r = analyzeChange(bodyC, SR, Am, C);
+check('Nur C mit Korpus-Mitschwingen: kein Wechsel zu Am', r.count === 0, `count=${r.count}`);
+const liveBody = new LiveChangeCounter(Am, C, SR);
+let liveN = 0;
+for (let i = 0; i < bodyC.length; i += 2048) liveN = liveBody.push(bodyC.subarray(i, Math.min(bodyC.length, i + 2048)));
+check('Nur C mit Korpus-Mitschwingen: live kein Wechsel', liveN === 0, `live=${liveN}`);
+
 // 10b. Wechsel E/A: Die leere tiefe E-Saite des E-Akkords klingt beim A nach. Das ist kein Fehler, nur ein Hinweis.
 const E = chordModel('E', [0, 2, 2, 1, 0, 0]);
 const A = chordModel('A', [-1, 0, 2, 2, 2, 0]);

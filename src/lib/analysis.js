@@ -1,5 +1,6 @@
 // Bewertung von Aufnahmen. Reine Funktionen: liefern Daten, die Texte entstehen in feedback.js.
 import {
+  BODY, LS_BINS, LS_BPS, LS_LO,
   decompose, detectOnsets, evidence, highBandRatio, hzToMidi, logSpectrum, magnitude, median, nextPow2,
   noteIndex, noteTemplates, NOTE_HI, NOTE_LO, quantile, rms, sounds,
 } from './dsp.js';
@@ -265,24 +266,79 @@ export function changeModel(a, b) {
     onlyA = [...am].filter((m) => !bp.has(m % 12));
     onlyB = [...bm].filter((m) => !ap.has(m % 12));
   }
-  return { a, b, onlyA: onlyA.filter(inRange), onlyB: onlyB.filter(inRange) };
+  return { a, b, onlyA: onlyA.filter(inRange), onlyB: onlyB.filter(inRange), fit: new Map() };
 }
 
-export function frameLabel(h, model, set) {
-  const avg = (list) => (list.length ? list.reduce((s, m) => s + h[noteIndex(m, set)], 0) / list.length : 0);
-  const ea = avg(model.onlyA);
-  const eb = avg(model.onlyB);
-  const r = (ea - eb) / (ea + eb + 1e-12);
-  if (r > 0.25) return 'a';
-  if (r < -0.25) return 'b';
-  return null;
+// Welcher der beiden Akkorde erklärt das Spektrum besser? Jeder Akkord wird mit allen seinen Tönen samt
+// Obertönen angepasst; verglichen wird, wie viel jeweils unerklärt bleibt. Der Bereich, in dem der Korpus
+// einer Konzertgitarre bei jedem Anschlag mitschwingt (90–125 Hz, z. B. A2), zählt nicht mit, sonst gilt
+// jeder kräftige Anschlag als Beleg für Akkorde mit A2 und ein C wird als Am erkannt.
+const fitMasks = new Map();
+function fitMask() {
+  if (!fitMasks.has('m')) {
+    const m = new Float32Array(LS_BINS);
+    for (let b = 0; b < LS_BINS; b++) {
+      const f = 440 * 2 ** ((LS_LO + b / LS_BPS - 69) / 12);
+      m[b] = f < 75 || (f >= BODY[0] && f <= BODY[1]) ? 0 : 1;
+    }
+    fitMasks.set('m', m);
+  }
+  return fitMasks.get('m');
+}
+function fitBasis(model, which, set) {
+  const key = `${which}`;
+  if (model.fit.has(key)) return model.fit.get(key);
+  const mask = fitMask();
+  const chord = which === 'a' ? model.a : model.b;
+  const W = [...new Set(chord.notes.map((e) => e.midi))].filter(inRange).map((m) => set.W[noteIndex(m, set)]);
+  const WtW = W.map((p) => W.map((q) => { let t = 0; for (let i = 0; i < LS_BINS; i++) t += p[i] * q[i] * mask[i]; return t; }));
+  const basis = { W, WtW };
+  model.fit.set(key, basis);
+  return basis;
+}
+function unexplained(ls, basis, mask) {
+  const { W, WtW } = basis;
+  const K = W.length;
+  const WtX = W.map((w) => { let t = 0; for (let i = 0; i < LS_BINS; i++) t += w[i] * ls[i] * mask[i]; return t; });
+  const h = new Float64Array(K).fill(1e-3);
+  for (let it = 0; it < 120; it++) {
+    for (let k = 0; k < K; k++) {
+      let d = 1e-12;
+      for (let j = 0; j < K; j++) d += WtW[k][j] * h[j];
+      h[k] *= WtX[k] / d;
+    }
+  }
+  let res = 0;
+  let tot = 0;
+  for (let i = 0; i < LS_BINS; i++) {
+    if (!mask[i]) continue;
+    let y = 0;
+    for (let k = 0; k < K; k++) y += W[k][i] * h[k];
+    res += (ls[i] - y) ** 2;
+    tot += ls[i] ** 2;
+  }
+  return res / (tot + 1e-12);
+}
+// Positiv: klingt eher wie Akkord a, negativ: eher wie b.
+export function chordLean(ls, model, set) {
+  const mask = fitMask();
+  const ra = unexplained(ls, fitBasis(model, 'a', set), mask);
+  const rb = unexplained(ls, fitBasis(model, 'b', set), mask);
+  return (rb - ra) / (ra + rb + 1e-12);
+}
+export const CHANGE_LEAN = 0.05;
+export function leanLabel(ls, model, set, thr = CHANGE_LEAN) {
+  const r = chordLean(ls, model, set);
+  return r > thr ? 'a' : r < -thr ? 'b' : null;
 }
 
 export class ChordSwitcher {
   constructor(need = 2) { this.need = need; this.current = null; this.cand = null; this.run = 0; this.count = 0; this.switches = []; }
 
   push(label, t = 0) {
-    if (!label) { this.run = 0; return this.count; }
+    // Ein unklares Fenster (Umgreifen, kurzer Anschlag) setzt einen begonnenen Wechsel nicht zurück.
+    // Zurückgesetzt wird nur, wenn wieder der bisherige Akkord erkannt wird.
+    if (!label) return this.count;
     if (label === this.current) { this.cand = null; this.run = 0; return this.count; }
     if (label === this.cand) this.run += 1; else { this.cand = label; this.run = 1; }
     if (this.run >= this.need) {
@@ -329,8 +385,7 @@ export class LiveChangeCounter {
     const loud = quantile(this.levels, 0.9);
     if (level < Math.max(0.002, loud * 0.12)) return this.switcher.push(null);
     const mag = magnitude(this.ring, 0, n, n);
-    const h = decompose(logSpectrum(mag, this.sr, n), this.set, 60);
-    return this.switcher.push(frameLabel(h, this.model, this.set));
+    return this.switcher.push(leanLabel(logSpectrum(mag, this.sr, n), this.model, this.set));
   }
 }
 
@@ -342,6 +397,32 @@ function carryHints(judged) {
     const { sure, ...rest } = h;
     return { ...rest, maybeStruck: same.filter((x) => !x.sure).length * 2 > same.length };
   });
+}
+
+// Welcher der beiden Akkorde klingt direkt nach jedem Anschlag? Zählt auch, wenn ein Akkord nur
+// einen Augenblick klingt, weil sofort umgegriffen wird. Gibt die Wechsel und ihre Zeitpunkte zurück.
+export function strumChanges(x, sr, model, set, { loud } = {}) {
+  const n = nextPow2(sr * 0.17);
+  const groups = strumClusters(detectOnsets(x, sr), 0.12);
+  const duration = x.length / sr;
+  let prev = null;
+  const switches = [];
+  const labels = [];
+  groups.forEach((g, i) => {
+    const next = i + 1 < groups.length ? groups[i + 1].t : duration;
+    const start = g.end + 0.015;
+    const len = Math.min(n / sr, next - start - 0.01);
+    if (len < 0.05) return;
+    const s0 = Math.round(start * sr);
+    const L = Math.round(len * sr);
+    if (loud !== undefined && rms(x, s0, L) < Math.max(0.002, loud * 0.12)) return;
+    const label = leanLabel(logSpectrum(magnitude(x, s0, L, n), sr, n), model, set);
+    labels.push({ t: g.t, label });
+    if (!label) return;
+    if (prev && label !== prev) switches.push(g.t);
+    prev = label;
+  });
+  return { count: switches.length, switches, labels };
 }
 
 export function analyzeChange(x, sr, a, b, { profile = 'nylon' } = {}) {
@@ -360,7 +441,7 @@ export function analyzeChange(x, sr, a, b, { profile = 'nylon' } = {}) {
     let label = null;
     if (levels[i] >= Math.max(0.002, loud * 0.12)) {
       const mag = magnitude(x, s, n, n);
-      label = frameLabel(decompose(logSpectrum(mag, sr, n), set, 80), model, set);
+      label = leanLabel(logSpectrum(mag, sr, n), model, set);
     }
     switcher.push(label, t);
     timeline.push({ t, current: switcher.current });
@@ -373,12 +454,16 @@ export function analyzeChange(x, sr, a, b, { profile = 'nylon' } = {}) {
     }
     return cur === 'a' ? a : cur === 'b' ? b : null;
   };
+  // Zweite Zählung pro Anschlag: erfasst auch Akkorde, die nur kurz klingen, weil sofort umgegriffen wird.
+  // Beide Zählungen erfinden an echten Aufnahmen kaum Wechsel, sie übersehen aber unterschiedliche; es gilt die höhere.
+  const byStrum = strumChanges(x, sr, model, set, { loud });
+  const counted = byStrum.count > switcher.count ? byStrum : { count: switcher.count, switches: switcher.switches };
   const segs = strumSegments(x, sr, detectOnsets(x, sr), duration);
-  if (!segs.length) return { ...emptyResult('change', x, sr), count: switcher.count };
+  if (!segs.length) return { ...emptyResult('change', x, sr), count: counted.count };
   const { results, tuningIssues } = evaluateStrums(x, sr, segs, chordAt, set);
   const judged = results.filter((r) => r.score !== null);
   return {
-    kind: 'change', duration, count: switcher.count, switches: switcher.switches, chords: [a.name, b.name],
+    kind: 'change', duration, count: counted.count, switches: counted.switches, chords: [a.name, b.name],
     segments: judged.map((r) => ({ t0: r.t0, t1: r.t1, score: r.score, chord: r.chord, issues: r.issues.map((i) => i.kind) })),
     issues: [...aggregate(judged, judged.length), ...tuningIssues],
     hints: carryHints(judged),
