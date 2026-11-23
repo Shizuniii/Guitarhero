@@ -85,6 +85,10 @@ function registerWorker() {
   }).catch(() => {});
 }
 
+// Ist dieser Punkt erreicht, ließen sich alle Programmdateien laden (siehe Rettung in index.html).
+window.__ghStarted = true;
+document.getElementById('rescue')?.remove();
+
 async function boot() {
   try {
     await Promise.all([bootState(), loadChords()]);
