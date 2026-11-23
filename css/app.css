@@ -786,3 +786,7 @@ kbd { font: 600 14.5px var(--ui); padding: 2px 7px; border: 1px solid var(--line
   .lp-seglist li, .lp-parts li { grid-template-columns: 3.8rem minmax(0, 1fr); }
   .lp-seglist .lp-src, .lp-parts .lp-src { grid-column: 2; justify-self: start; }
 }
+.lp-songform input { flex: 1 1 220px; max-width: 360px; }
+.lp-songs { display: flex; flex-direction: column; }
+.lp-songs li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font-weight: 600; }
+.lp-songcard p { margin: 0; }

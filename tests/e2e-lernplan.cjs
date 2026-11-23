@@ -67,6 +67,17 @@ const readSettings = (p) => p.evaluate(() => new Promise((res) => {
   ok('Gesamtzeit um 20 Minuten', /^(19|20) Min\.$/.test((await p.textContent('.lp-big')).trim()), await p.textContent('.lp-big'));
   ok('Nächste Lektion: Guitar Strumming Tips', (await p.textContent('.lp-lesson h3')).includes('Guitar Strumming Tips'));
 
+  // 1b. Noch kein Song: Karte statt Song-Arbeit, Song eintragen
+  ok('Karte „Noch kein Song“', (await p.locator('.lp-songcard').count()) === 1);
+  ok('Ohne Song keine Song-Arbeit im Ablauf', !(await p.textContent('.lp-seglist')).includes('Song'));
+  await p.fill('.lp-songcard input', 'Eleanor Rigby');
+  await p.click('.lp-songcard button[type=submit]');
+  await p.waitForTimeout(250);
+  ok('Song steht im Ablauf', (await p.textContent('.lp-seglist')).includes('Song: Eleanor Rigby'));
+  ok('Karte verschwindet', (await p.locator('.lp-songcard').count()) === 0);
+  ok('Song gespeichert', JSON.stringify((await readSettings(p)).lernplan.songList) === '["Eleanor Rigby"]');
+  ok('Mit Song um 20 Minuten', /^(19|20) Min\.$/.test((await p.textContent('.lp-big')).trim()), await p.textContent('.lp-big'));
+
   // 2. Kurz-Einheit
   await p.click('.lp-today .segmented >> text=Kurz');
   await p.waitForTimeout(200);
@@ -111,6 +122,10 @@ const readSettings = (p) => p.evaluate(() => new Promise((res) => {
   ok('Prüfpunkt gespeichert', (await readSettings(p)).lernplan.checks['m5-chords'] === true);
   ok('Prüfpunkte zählen mit', (await p.textContent('.lp-stage.cur summary')).includes('Prüfpunkte 1/5'));
   ok('Abdeckung ohne Lücken', (await p.locator('.lp-cov li.zero').count()) === 0);
+  ok('Songs-Liste im Plan', (await p.textContent('.lp-songs')).includes('Eleanor Rigby'));
+  await p.click('.lp-songs button');
+  await p.waitForTimeout(250);
+  ok('Song entfernt', (await p.locator('.lp-songs').count()) === 0 && (await readSettings(p)).lernplan.songList.length === 0);
 
   // 6. Eigene Pläne unverändert, Üben-Seite wie vorher
   ok('Eigene Pläne unverändert', JSON.stringify(await readStore(p, 'plans')) === plansBefore);

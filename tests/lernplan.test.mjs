@@ -38,6 +38,7 @@ deepFreeze(plans);
 const lp = (patch = {}) => ({ ...LP_DEFAULT, ...patch, lessons: { ...LP_DEFAULT.lessons, ...(patch.lessons || {}) } });
 const rec = (a, b, count, seconds = 60, at = 1000) => ({ id: `${a}|${b}|${seconds}`, a, b, seconds, best: count, history: [{ at, count, seconds }] });
 const base = { lp: lp(), plans, patterns, scores, records: [] };
+const withSongs = { ...base, lp: lp({ songList: ['Eleanor Rigby', 'Get Lucky'] }) };
 const minutes = (s) => estimateSeconds(s.steps) / 60;
 
 // 1. Übungen aus dem Plan
@@ -48,7 +49,7 @@ ok('Unbekannte Schritte bleiben sichtbar', ex.other.length === 1 && ex.other[0].
 // 2. Modul 5, normale Einheit
 const m5 = currentModule(base);
 ok('Start in Modul 5', m5.n === 5);
-const s0 = buildSession(base, { n: 0 });
+const s0 = buildSession(withSongs, { n: 0 });
 ok('Einheit passt in 20 Minuten', minutes(s0) > 18 && minutes(s0) <= 20.5, `(${minutes(s0).toFixed(1)} Min.)`);
 ok('Finger Stretch zuerst', s0.steps[0].id === 'lp-stretch' && s0.steps[0].config.seconds === 120);
 ok('Chord Perfect auf C', s0.steps.some((s) => s.id === 'lp-pc-C'));
@@ -59,6 +60,13 @@ ok('Wechsel behalten die Dauer aus deinem Plan', changes.every((c) => {
   return orig && orig.config.seconds === c.config.seconds;
 }));
 ok('Zwei Strums, ein Riff, Song-Arbeit', s0.steps.filter((s) => s.type === 'strum').length === 2 && s0.steps.filter((s) => s.type === 'riff').length === 1 && s0.steps.some((s) => s.id === 'lp-song' && s.config.seconds === 300));
+ok('Song-Arbeit nennt deinen Song, reihum', s0.steps.find((s) => s.id === 'lp-song').config.label === 'Song: Eleanor Rigby' && buildSession(withSongs, { n: 1 }).steps.find((s) => s.id === 'lp-song').config.label === 'Song: Get Lucky');
+
+// Ohne Song: die 5 Minuten gehen an 4 weitere Wechsel
+const noSong = buildSession(base, { n: 0 });
+ok('Ohne Song keine Song-Arbeit', !noSong.steps.some((s) => s.id === 'lp-song'));
+ok('Ohne Song 4 Wechsel mehr', noSong.steps.filter((s) => s.type === 'change').length === 10);
+ok('Ohne Song trotzdem um 20 Minuten', minutes(noSong) > 18 && minutes(noSong) <= 20.5, `(${minutes(noSong).toFixed(1)} Min.)`);
 ok('Jede Einheit hat eindeutige Schritte', new Set(s0.steps.map((s) => s.id)).size === s0.steps.length);
 ok('Jeder Schritt sagt, woher er kommt', s0.items.every((i) => i.src && i.why));
 
@@ -71,7 +79,7 @@ ok('Lektionstag zeigt die nächste Lektion', lessonStep?.id === 'lp-lesson-b1-50
 ok('Lektionstag bleibt bei 20 Minuten', minutes(lek) <= 20.1 && lek.steps.length >= 2, `(${minutes(lek).toFixed(1)} Min.)`);
 
 // 4. Verteilung über 21 Einheiten
-const cov = coverage(base, { count: 21, module: m5 });
+const cov = coverage(withSongs, { count: 21, module: m5 });
 const by = (g) => cov.rows.filter((r) => r.group === g);
 ok('Keine deiner Übungen fällt heraus', cov.rows.every((r) => r.times > 0), cov.rows.filter((r) => !r.times).map((r) => r.label || r.id).join(','));
 const cPairs = by('Wechsel').filter((r) => r.label.includes('C'));
@@ -82,6 +90,9 @@ ok('C jeden Tag, Finger Stretch jeden Tag', by('Akkorde').find((r) => r.label ==
 const caya = by('Riffs').find((r) => r.id === 'lp-riff-r4').times;
 ok('Come As You Are jede zweite Einheit', caya === 11, `(${caya})`);
 ok('Song-Arbeit kommt vom Lernplan', cov.added.some((a) => a.id === 'lp-song' && a.times === 21));
+const covNo = coverage(base, { count: 21, module: m5 });
+const poolNo = covNo.rows.filter((r) => r.group === 'Wechsel' && !r.label.includes('C'));
+ok('Ohne Song: andere Wechsel öfter, weiter gleichmäßig', Math.min(...poolNo.map((r) => r.times)) > Math.max(...pool.map((r) => r.times)) - 1 && Math.max(...poolNo.map((r) => r.times)) - Math.min(...poolNo.map((r) => r.times)) <= 1, poolNo.map((r) => r.times).join(','));
 
 // 5. Einheiten zählen, Tage nicht
 ok('Einheit zählt erledigte Tage vor heute', unitIndex({ days: ['2026-11-20', '2026-11-22', '2026-11-23'] }, '2026-11-23') === 2);
@@ -101,25 +112,29 @@ ok('Messung von heute zählt nicht für heute', bestPerMinute([rec('A', 'D', 40,
 // 8. Weiter zu Modul 6, G erst nach der G-Lektion
 const allM5 = Object.fromEntries(MODULES[0].lessons.map((l) => [l.id, true]));
 const checksM5 = { 'm5-chords': true, 'm5-rhythm': true, 'm5-caya': true, 'm5-song': true };
+const checksM6 = { 'm6-chords': true, 'm6-picking': true, 'm6-68': true, 'm6-song': true };
 const recsM5 = [rec('Am', 'C', 32), rec('C', 'Em', 31)];
-const ctx6 = { ...base, records: recsM5, lp: lp({ lessons: allM5, checks: checksM5 }) };
+const ctx6 = { ...base, records: recsM5, lp: lp({ lessons: allM5, checks: checksM5, songList: ['Eleanor Rigby'] }) };
 ok('Modul 6 nach allen Lektionen und Prüfpunkten', currentModule(ctx6).n === 6);
 ok('Ohne Messung bleibt Modul 5', currentModule({ ...ctx6, records: [] }).n === 5);
 const s6 = buildSession(ctx6, { n: 0 });
 ok('Vor der G-Lektion bleibt C der neueste Akkord', s6.newest === 'C' && !s6.steps.some((s) => s.id === 'lp-pc-G'));
-ok('Ohne Wechselschlag-Lektion zwei Wechsel mehr', s6.steps.filter((s) => s.type === 'change').length === 6 && !s6.steps.some((s) => s.id === 'lp-pick'));
-const ctx6g = { ...ctx6, lp: lp({ lessons: { ...allM5, 'b1-601': true, 'b1-602': true, 'b1-604': true }, checks: checksM5 }) };
+ok('Ohne Wechselschlag-Lektion ein Wechsel mehr', s6.steps.filter((s) => s.type === 'change').length === 5 && !s6.steps.some((s) => s.id === 'lp-pick'));
+ok('Ohne 6/8-Lektion zwei Strums', s6.steps.filter((s) => s.type === 'strum').length === 2 && !s6.steps.some((s) => s.id === 'lp-68'));
+const ctx6g = { ...ctx6, lp: lp({ lessons: { ...allM5, 'b1-601': true, 'b1-602': true, 'b1-604': true }, checks: checksM5, songList: ['Eleanor Rigby'] }) };
 const s6g = buildSession(ctx6g, { n: 1 });
 ok('Nach der G-Lektion: G und Wechsel mit G', s6g.newest === 'G' && s6g.steps.some((s) => s.id === 'lp-pc-G') && s6g.steps.filter((s) => s.type === 'change' && [s.config.a.name, s.config.b.name].includes('G')).length === 2);
-ok('Wechselschlag und 6/8 nach ihren Lektionen', s6g.steps.some((s) => s.id === 'lp-pick') && s6g.steps.some((s) => s.id === 'lp-68'));
+ok('Wechselschlag und 6/8 nach ihren Lektionen', s6g.steps.some((s) => s.id === 'lp-pick' && s.config.seconds === 60) && s6g.steps.some((s) => s.id === 'lp-68') && s6g.steps.filter((s) => s.type === 'strum').length === 1);
+const g6 = (recs) => moduleState(MODULES[1], { ...ctx6g, records: recs }).checks.find((c) => c.id === 'm6-omc');
+ok('Modul-6-Prüfpunkt misst G–C und G–D', !g6([]).pass && g6([rec('G', 'C', 30), rec('D', 'G', 31)]).pass, `(${g6([]).auto.evidence})`);
 ok('Modul 6 passt in 20 Minuten', minutes(s6g) <= 20.5 && minutes(buildSession(ctx6g, { n: 0 })) <= 20.5, `(${minutes(s6g).toFixed(1)} Min.)`);
 
 // 9. Modul 7: die zwei schwächsten Wechsel
 const allM6 = Object.fromEntries(MODULES[1].lessons.map((l) => [l.id, true]));
 const ctx7 = {
   ...base,
-  records: [rec('Am', 'C', 32), rec('C', 'Em', 31), rec('D', 'E', 18), rec('A', 'Dm', 25), rec('E', 'Em', 29), rec('A', 'D', 40)],
-  lp: lp({ lessons: { ...allM5, ...allM6 }, checks: { ...checksM5, 'm6-goals': true } }),
+  records: [rec('Am', 'C', 32), rec('C', 'Em', 31), rec('C', 'G', 30), rec('D', 'G', 30), rec('D', 'E', 18), rec('A', 'Dm', 25), rec('E', 'Em', 29), rec('A', 'D', 40)],
+  lp: lp({ lessons: { ...allM5, ...allM6 }, checks: { ...checksM5, ...checksM6 } }),
 };
 ok('Modul 7 nach Modul 6', currentModule(ctx7).n === 7);
 const s7 = buildSession(ctx7, { n: 0 });
@@ -127,7 +142,7 @@ const weak = s7.items.filter((i) => i.why.startsWith('Schwach')).map((i) => i.st
 ok('Die zwei schwächsten unter 30', weak.length === 2 && weak.includes('lp-omc-D|E') && weak.includes('lp-omc-A|Dm'), weak.join(','));
 ok('Old Faithful immer dabei', [0, 1, 2].every((n) => buildSession(ctx7, { n }).steps.some((s) => s.id === 'lp-strum-p3' && s.config.bpm >= 80)));
 const g1 = moduleState(MODULES[2], ctx7).checks.find((c) => c.id === 'g1-omc');
-ok('Grade-1-Prüfpunkt zählt alle 28 Paare', !g1.pass && g1.auto.evidence.startsWith('3 von 28'), `(${g1.auto.evidence})`);
+ok('Grade-1-Prüfpunkt zählt alle 28 Paare', !g1.pass && g1.auto.evidence.startsWith('5 von 28'), `(${g1.auto.evidence})`);
 const songs = moduleState(MODULES[2], { ...ctx7, lp: { ...ctx7.lp, songs: 5 } }).checks.find((c) => c.id === 'g1-songs');
 ok('Fünf Songs zählen', songs.pass);
 

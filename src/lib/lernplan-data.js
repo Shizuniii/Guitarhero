@@ -35,7 +35,7 @@ export const MODULES = [
       items: ['2′ Finger Stretch', '1′ C Chord Perfect', '1′ Chord Perfect auf dem Akkord, der schwerfällt', '1′ OMC Am → C', '1′ OMC C → Em', '2′ Strumming (beliebige Muster, Timing)', '2′ Come As You Are', '10′ Song-Arbeit'],
     },
     checks: [
-      { id: 'm5-omc', text: 'Rund 30 Akkordwechsel pro Minute', auto: 'm5omc', how: 'Gemessen an den beiden Wechseln aus Justins Routine, Am–C und C–Em: beide mindestens 30 pro Minute.' },
+      { id: 'm5-omc', text: 'Rund 30 Akkordwechsel pro Minute', auto: 'routine', pairs: [['Am', 'C'], ['C', 'Em']], how: 'Gemessen an den beiden Wechseln aus Justins Routine, Am–C und C–Em: beide mindestens 30 pro Minute.' },
       { id: 'm5-chords', text: 'A, D, E, Am, Dm, Em und C auswendig' },
       { id: 'm5-rhythm', text: 'Sicherer im Rhythmus: Die Schlaghand bleibt ziemlich gleichmäßig in Bewegung, am besten mit Metronom' },
       { id: 'm5-caya', text: 'Come As You Are einmal durchgespielt, nicht perfekt, einfach durch und mit Spaß' },
@@ -55,11 +55,18 @@ export const MODULES = [
       { id: 'b1-605', title: 'Open String Note Names', url: L('open-string-note-names-b1-605') },
       { id: 'b1-606', title: 'Forcing Chord Changes', url: L('forcing-chord-changes-b1-606'), sum: 'Wechsel im Song erzwingen: Akkord auf Schlag 1, die Schlaghand läuft weiter.' },
       { id: 'b1-607', title: 'Songs For Module 6', url: L('songs-for-module-6-b1-607'), sum: 'Songs zum Üben der bisherigen Akkorde und Techniken.' },
-      { id: 'b1-608', title: 'Module 6 Practice', url: L('module-6-practice-b1-608'), sum: 'Justins Routine für Modul 6.' },
+      { id: 'b1-608', title: 'Module 6 Practice', url: L('module-6-practice-b1-608'), sum: 'Justins 20-Minuten-Routine und die Ziele für Modul 6.' },
     ],
-    routine: { url: L('module-6-practice-b1-608'), items: null },
+    routine: {
+      url: L('module-6-practice-b1-608'),
+      items: ['1′ Finger Stretch', '1′ Wechselschlag auf einer Saite (Plektrumwinkel, Handgelenk, Arm)', '2′ G Chord Perfect', '1′ Chord Perfect auf dem Akkord, der schwerfällt', '1′ OMC G → C', '1′ OMC G → D', '1′ OMC C → D (oder der schwierigste)', '2′ Strumming 6/8', '10′ Song-Arbeit'],
+    },
     checks: [
-      { id: 'm6-goals', text: 'Justins Ziele aus „Module 6 Practice“ erfüllt', how: 'Diese Seite ließ sich nicht auslesen. Öffne die Lektion und prüf die Ziele dort.', link: L('module-6-practice-b1-608') },
+      { id: 'm6-omc', text: 'Rund 30 Akkordwechsel pro Minute', auto: 'routine', pairs: [['G', 'C'], ['G', 'D']], how: 'Gemessen an den Wechseln aus Justins Routine, G–C und G–D: beide mindestens 30 pro Minute.' },
+      { id: 'm6-chords', text: 'A, D, E, Am, Dm, Em, C und G auswendig' },
+      { id: 'm6-picking', text: 'Wechselschlag auf einer Saite ausprobiert und gemerkt, wie stark der Plektrumwinkel den Klang verändert' },
+      { id: 'm6-68', text: '6/8 ausprobiert, am besten mit Metronom. Auch wenn es noch schwerfällt, kannst du Klick und Tempo vorausahnen' },
+      { id: 'm6-song', text: 'Mindestens einen Song mit G größtenteils durchspielen. Justins Tipp: Hey Joe von Jimi Hendrix' },
     ],
   },
   {
@@ -115,16 +122,26 @@ export const HINTS = {
   oldFaithful: 'Grade-1-Ziel: Old Faithful (D DU UD) mit 80 BPM zum Metronom.',
   caya: 'Come As You Are: Übung für Abschlag, sauberes Greifen und Rhythmus. Der Riff beginnt auf dem „und“ nach Zählzeit 3 im Takt davor. Etwa 2 Minuten.',
   riff: 'Riff aus deinem Plan, der Reihe nach. Etwa 2 Minuten.',
-  picking: 'Wechselschlag: auf einer Saite gleichmäßig ab und auf anschlagen. Auch andere Saiten probieren, abwechselnd mit gerade und schräg gehaltenem Plektrum.',
+  picking: 'Wechselschlag: auf einer Saite gleichmäßig ab und auf anschlagen. Achte auf Plektrumwinkel, Handgelenk und Arm, probier gerade und schräg gehaltenes Plektrum und auch andere Saiten.',
   forcing: 'Aus „Forcing Chord Changes“: Akkord auf Schlag 1 treffen, die Schlaghand hört nie auf. Notfalls einen Akkord auslassen oder kürzer halten.',
   sixEight: '6/8 mit Metronom: laut zählen, Betonung auf 1 und 4. Auf 2 und 5 kein Anschlag, der Arm schwingt trotzdem weiter. Das Muster steht in der Lektion „A 6:8 Strumming Pattern“.',
 };
 
 export const SONG_NOTES = {
   5: 'Ein Song mit C. Justins Vorschläge in „Songs For Module 5“: Eleanor Rigby (nur C und Em), Get Lucky, Black, I Only Want You, Tonight’s The Night. Er rät: Songs nehmen, die dir gefallen, Songs mit G noch auslassen.',
-  6: 'Ein Song aus „Songs For Module 6“ oder einer, den du magst.',
+  6: 'Ein Song mit G. Justins Tipp in „Module 6 Practice“: Hey Joe von Jimi Hendrix. Mehr Vorschläge in „Songs For Module 6“.',
   7: 'Songs auswendig lernen. Grade-1-Ziel: fünf leichte Songs, so gut, dass du sie auf einer Party spielen kannst.',
 };
+
+// Songvorschläge für die Karte „Noch kein Song“, aus Justins Lektionen
+export const SONG_IDEAS = {
+  5: { text: 'Justins Vorschläge für Modul 5: Eleanor Rigby (nur C und Em), Get Lucky, Black, I Only Want You, Tonight’s The Night. Songs mit G lässt er hier noch aus. Für den Prüfpunkt brauchst du einen Song mit C.', lesson: 'b1-507' },
+  6: { text: 'Justins Tipp für Modul 6: Hey Joe von Jimi Hendrix. Für den Prüfpunkt brauchst du einen Song mit G.', lesson: 'b1-607' },
+  7: { text: 'Für Grade 1 brauchst du fünf leichte Songs auswendig. Wie man sie sich merkt, zeigt Justin in „Memorize Easy Songs“.', lesson: 'b1-707' },
+};
+
+// Ohne Song gehen die 5 Minuten an zusätzliche Wechsel: Dort ist dein Abstand zum Ziel gemessen (rund 30 pro Minute).
+const NO_SONG = [{ kind: 'omc', from: 'pool', n: 4 }];
 
 // Ablauf einer Einheit pro Modul. Minuten sind Richtwerte, Wechsel dauern so lange wie in deinem Plan.
 // kind: stretch | perfect | omc | strum | riff | picking | sixeight | song
@@ -138,7 +155,7 @@ export const TEMPLATES = {
       { kind: 'omc', from: 'pool', n: 4 },
       { kind: 'strum', n: 2 },
       { kind: 'riff', focus: 'Come As You Are' },
-      { kind: 'song', min: 5 },
+      { kind: 'song', min: 5, fallback: NO_SONG },
     ],
     kurz: [
       { kind: 'perfect', from: 'new' },
@@ -154,10 +171,11 @@ export const TEMPLATES = {
       { kind: 'perfect', from: 'rot', n: 1 },
       { kind: 'omc', from: 'new', n: 2 },
       { kind: 'omc', from: 'pool', n: 2 },
-      { kind: 'strum', n: 2, alt: { kind: 'sixeight', unlock: 'b1-604' } },
-      { kind: 'picking', unlock: 'b1-601', instead: { kind: 'omc', from: 'pool', n: 2 } },
+      { kind: 'picking', unlock: 'b1-601', instead: { kind: 'omc', from: 'pool', n: 1 } },
+      { kind: 'strum', n: 1, unlock: 'b1-604' },
+      { kind: 'sixeight', unlock: 'b1-604', instead: { kind: 'strum', n: 2 } },
       { kind: 'riff' },
-      { kind: 'song', min: 5 },
+      { kind: 'song', min: 5, fallback: NO_SONG },
     ],
     kurz: [
       { kind: 'perfect', from: 'new' },
@@ -175,7 +193,7 @@ export const TEMPLATES = {
       { kind: 'strum', n: 2, first: 'Old Faithful' },
       { kind: 'sixeight' },
       { kind: 'riff' },
-      { kind: 'song', min: 5 },
+      { kind: 'song', min: 5, fallback: NO_SONG },
     ],
     kurz: [
       { kind: 'perfect', from: 'rot', n: 2 },

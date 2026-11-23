@@ -13,6 +13,7 @@ export const LP_DEFAULT = {
   songs: 0,
   days: [],
   problemChord: '',
+  songList: [],
   mode: null,
   overrides: {},
 };
@@ -96,8 +97,8 @@ export function evaluateChecks(m, ctx) {
   const upTo = ctx.checkBefore ?? Infinity;
   return m.checks.map((c) => {
     let auto = null;
-    if (c.auto === 'm5omc') {
-      const vals = [['Am', 'C'], ['C', 'Em']].map(([a, b]) => ({ label: `${a}–${b}`, v: bestPerMinute(records, a, b, upTo) }));
+    if (c.auto === 'routine') {
+      const vals = c.pairs.map(([a, b]) => ({ label: `${a}–${b}`, v: bestPerMinute(records, a, b, upTo) }));
       auto = {
         pass: vals.every((x) => x.v !== null && x.v >= OMC_GOAL),
         evidence: vals.map((x) => `${x.label}: ${x.v === null ? 'noch nicht gemessen' : `${Math.round(x.v)} pro Minute`}`).join(', '),
@@ -217,10 +218,21 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
   const tpl = TEMPLATES[m.n] || TEMPLATES[7];
   const parts = mode === 'normal' ? tpl.normal : tpl.kurz;
 
+  const songList = (lp.songList || []).filter((x) => x && x.trim());
+
+  // Teile, die noch gesperrt sind, werden ersetzt (instead). Ohne Song gilt der Ersatz für die Song-Arbeit (fallback).
+  const expand = (part) => {
+    if (part.unlock && !lessonOn(part.unlock)) return part.instead ? [part.instead] : [];
+    if (part.kind === 'song' && !songList.length) return part.fallback || [];
+    return [part];
+  };
+  // Ersatzteile rücken an ihren Platz: Wechsel zu den Wechseln, Strums zu den Strums
+  const ORDER = ['stretch', 'perfect', 'omc', 'picking', 'strum', 'sixeight', 'riff', 'song'];
+  const plan = parts.flatMap(expand).map((p, i) => ({ p, i })).sort((x, y) => (ORDER.indexOf(x.p.kind) - ORDER.indexOf(y.p.kind)) || x.i - y.i).map((x) => x.p);
+
   // Weitere Wechsel laufen wie ein Lesezeichen durch deine Liste: Jede Einheit nimmt die nächsten.
   // Wie viele pro Einheit, hängt nur vom Ablauf ab, nicht vom Tag. So kommt jedes Paar gleich oft dran.
-  const resolve = (part) => (part.unlock && !lessonOn(part.unlock) ? part.instead || null : part);
-  const perUnit = parts.map(resolve).filter((p) => p?.kind === 'omc' && p.from === 'pool').reduce((sum, p) => sum + (p.n || 1), 0);
+  const perUnit = plan.filter((p) => p.kind === 'omc' && p.from === 'pool').reduce((sum, p) => sum + (p.n || 1), 0);
   let cursor = n * perUnit;
   const drawPool = (k) => {
     const out = [];
@@ -232,9 +244,7 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
     return out;
   };
 
-  const run = (raw) => {
-    const part = resolve(raw);
-    if (!part) return;
+  const run = (part) => {
     switch (part.kind) {
       case 'stretch':
         if (ex.stretch) add(timerStep('lp-stretch', ex.stretch.label, ex.stretch.seconds), 'Aufwärmen', 'Dein Plan');
@@ -307,7 +317,7 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
         add(timerStep('lp-68', '6/8-Strumming', 120, { hint: HINTS.sixEight, link: MODULES[1].lessons[3].url, linkLabel: 'Lektion öffnen' }), m.n === 6 ? 'Neu in Modul 6' : 'Aus Modul 6', `Justin, Modul ${m.n}`);
         break;
       case 'picking':
-        add(timerStep('lp-pick', 'Wechselschlag', 120, { hint: HINTS.picking }), 'Neu in Modul 6', 'Justin, Modul 6');
+        add(timerStep('lp-pick', 'Wechselschlag', 60, { hint: HINTS.picking }), 'Neu in Modul 6', 'Justin, Modul 6');
         break;
       case 'riff': {
         const riffs = ex.riffs;
@@ -329,7 +339,9 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
       case 'song': {
         const note = [SONG_NOTES[m.n], m.n === 6 && lessonOn('b1-606') ? HINTS.forcing : ''].filter(Boolean).join(' ');
         const songLink = m.n === 5 ? MODULES[0].lessons[6].url : m.n === 6 ? MODULES[1].lessons[6].url : MODULES[2].lessons[6].url;
-        add(timerStep('lp-song', 'Song-Arbeit', (part.min || 5) * 60, { hint: note, link: songLink, linkLabel: m.n === 7 ? 'Lektion öffnen' : 'Songliste öffnen' }), 'Songs spielen', `Justin, Modul ${m.n}`);
+        const song = rotate(songList, 1, n)[0];
+        add(timerStep('lp-song', `Song: ${song}`, (part.min || 5) * 60, { hint: note, link: songLink, linkLabel: m.n === 7 ? 'Lektion öffnen' : 'Songliste öffnen' }),
+          songList.length > 1 ? 'Deine Songs reihum' : 'Dein Song', `Justin, Modul ${m.n}`);
         break;
       }
       default:
@@ -337,7 +349,7 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
     }
   };
 
-  parts.forEach(run);
+  plan.forEach(run);
 
   // Lektionstag: die Lektion plus so viel aus der Kurz-Einheit, wie in 20 Minuten passt
   let lesson = null;

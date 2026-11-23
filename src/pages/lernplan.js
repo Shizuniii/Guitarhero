@@ -2,7 +2,7 @@
 // und Justins Grade-1-Modulen. Deine eigenen Pläne bleiben unberührt.
 import { html, useEffect, useState } from '../../vendor/htm-preact.js';
 import { dayKey, fmtTime, useStore } from '../lib/core.js';
-import { COURSE, MODULES, TEMPLATES, WEEK } from '../lib/lernplan-data.js';
+import { COURSE, MODULES, SONG_IDEAS, TEMPLATES, WEEK } from '../lib/lernplan-data.js';
 import {
   buildSession, coverage, currentModule, estimateSeconds, moduleState, newestChord, nextLesson, stepSeconds, unitIndex,
 } from '../lib/lernplan.js';
@@ -142,6 +142,7 @@ function HeuteTab({ ctx }) {
             <${Button} icon="check" onClick=${() => { updateLp({ lessons: { [lesson.id]: true } }); toast(`${lesson.title} abgehakt`, 'good'); }}>Gesehen<//>
           </div>
         </section>`}
+        ${!(ctx.lp.songList || []).length && html`<${SongCard} module=${session.module}/>`}
       </div>
       <div class="lp-panel">
         <h3>Ablauf</h3>
@@ -202,6 +203,54 @@ function Upcoming({ ctx, session }) {
   </section>`;
 }
 
+function addSong(lp, name) {
+  const clean = name.trim();
+  if (!clean) return false;
+  const list = (lp.songList || []).filter((x) => x.toLowerCase() !== clean.toLowerCase());
+  updateLp({ songList: [...list, clean] });
+  toast(`${clean} kommt ab jetzt in die Song-Arbeit`, 'good');
+  return true;
+}
+
+function SongInput({ lp }) {
+  const [name, setName] = useState('');
+  const submit = (e) => {
+    e.preventDefault();
+    if (addSong(lp, name)) setName('');
+  };
+  return html`<form class="row wrap lp-songform" onSubmit=${submit}>
+    <input type="text" placeholder="Songname, z. B. Eleanor Rigby" value=${name} onInput=${(e) => setName(e.currentTarget.value)} aria-label="Song hinzufügen"/>
+    <${Button} type="submit" icon="plus" disabled=${!name.trim()}>Song hinzufügen<//>
+  </form>`;
+}
+
+function SongCard({ module: m }) {
+  const lp = useStore(settings, (s) => s.lernplan);
+  const idea = SONG_IDEAS[m.n];
+  const lesson = m.lessons.find((l) => l.id === idea.lesson);
+  return html`<section class="lp-panel lp-songcard stack">
+    <p class="lp-kicker">Noch kein Song</p>
+    <p>Justin plant in jeder Einheit Zeit für Songs ein. Solange du keinen hast, gehen diese 5 Minuten an 4 weitere Wechsel.</p>
+    <p class="small muted">${idea.text}</p>
+    ${lesson && html`<a class="small" href=${lesson.url} target="_blank" rel="noopener">${lesson.title} öffnen</a>`}
+    <${SongInput} lp=${lp}/>
+  </section>`;
+}
+
+function SongList({ ctx, module: m }) {
+  const list = ctx.lp.songList || [];
+  const remove = (name) => updateLp({ songList: list.filter((x) => x !== name) });
+  return html`<section class="lp-panel stack">
+    <h3>Deine Songs</h3>
+    <p class="small muted">Songs, die du gerade übst. Sie kommen reihum in die Song-Arbeit, jede Einheit einer. Ohne Song gehen die 5 Minuten an 4 weitere Wechsel. ${SONG_IDEAS[m.n].text}</p>
+    ${list.length > 0 && html`<ul class="lp-songs">${list.map((name) => html`<li>
+      <span>${name}</span>
+      <${Button} size="sm" icon="trash" aria-label=${`${name} entfernen`} onClick=${() => remove(name)}>Entfernen<//>
+    </li>`)}</ul>`}
+    <${SongInput} lp=${ctx.lp}/>
+  </section>`;
+}
+
 // ---------- Plan ----------
 
 function describePart(part, m, lp) {
@@ -210,27 +259,37 @@ function describePart(part, m, lp) {
     const l = m.lessons.findIndex((x) => x.id === id);
     return l >= 0 ? `${m.n}.${l + 1}` : id;
   };
-  switch (part.kind) {
-    case 'stretch': return ['2′', 'Finger Stretch', 'Dein Plan'];
-    case 'perfect':
-      return part.from === 'new'
-        ? ['1′', `Chord Perfect auf dem neuesten Akkord (${newest})`, `Justin, Modul ${m.n}`]
-        : [`${part.n || 1} × 1′`, `Chord Perfect, deine anderen Akkorde reihum oder dein Problem-Akkord`, 'Dein Plan'];
-    case 'omc':
-      if (part.from === 'new') return [`${part.n} × 1′`, `Wechsel mit ${newest}, reihum`, `Justin, Modul ${m.n}`];
-      if (part.from === 'weak') return [`${part.n} × 1′`, 'Deine schwächsten Wechsel unter 30 pro Minute', 'Justin, Modul 7'];
-      return [`${part.n} × 1′`, m.n >= 7 ? 'Weitere Wechsel aller acht Akkorde, reihum' : 'Weitere Wechsel aus deinem Plan, reihum', 'Dein Plan'];
-    case 'strum': {
-      let text = part.first ? `Strumming: ${part.first} immer, dazu deine Muster reihum` : 'Strumming, deine Muster reihum';
-      if (part.alt) text += `. Ab Lektion ${lesson(part.alt.unlock)} jede zweite Einheit stattdessen 2′ 6/8`;
-      return [`${part.n} × 1′`, text, 'Dein Plan'];
+  const base = (p) => {
+    switch (p.kind) {
+      case 'stretch': return ['2′', 'Finger Stretch', 'Dein Plan'];
+      case 'perfect':
+        return p.from === 'new'
+          ? ['1′', `Chord Perfect auf dem neuesten Akkord (${newest})`, `Justin, Modul ${m.n}`]
+          : [`${p.n || 1} × 1′`, 'Chord Perfect, deine anderen Akkorde reihum oder dein Problem-Akkord', 'Dein Plan'];
+      case 'omc':
+        if (p.from === 'new') return [`${p.n} × 1′`, `Wechsel mit ${newest}, reihum`, `Justin, Modul ${m.n}`];
+        if (p.from === 'weak') return [`${p.n} × 1′`, 'Deine schwächsten Wechsel unter 30 pro Minute', 'Justin, Modul 7'];
+        return [`${p.n} × 1′`, m.n >= 7 ? 'Weitere Wechsel aller acht Akkorde, reihum' : 'Weitere Wechsel aus deinem Plan, reihum', 'Dein Plan'];
+      case 'strum':
+        return [`${p.n} × 1′`, p.first ? `Strumming: ${p.first} immer, dazu deine Muster reihum` : 'Strumming, deine Muster reihum', 'Dein Plan'];
+      case 'picking': return ['1′', 'Wechselschlag auf einer Saite', `Justin, Modul ${m.n}`];
+      case 'sixeight': return ['2′', '6/8-Strumming mit Metronom', `Justin, Modul ${m.n}`];
+      case 'riff': return ['ca. 2′', p.focus ? `Riff: ${p.focus} jede zweite Einheit, sonst deine anderen Riffs reihum` : 'Riff, deine Riffs reihum', p.focus ? `Justin, Modul ${m.n}` : 'Dein Plan'];
+      case 'song': return [`${p.min}′`, 'Song-Arbeit, deine Songs reihum', `Justin, Modul ${m.n}`];
+      default: return ['', p.kind, ''];
     }
-    case 'picking': return ['2′', `Wechselschlag, ab Lektion ${lesson(part.unlock)}. Vorher 2 weitere Wechsel`, `Justin, Modul ${m.n}`];
-    case 'sixeight': return ['2′', '6/8-Strumming mit Metronom', `Justin, Modul ${m.n}`];
-    case 'riff': return ['ca. 2′', part.focus ? `Riff: ${part.focus} jede zweite Einheit, sonst deine anderen Riffs reihum` : 'Riff, deine Riffs reihum', part.focus ? `Justin, Modul ${m.n}` : 'Dein Plan'];
-    case 'song': return [`${part.min}′`, 'Song-Arbeit', `Justin, Modul ${m.n}`];
-    default: return ['', part.kind, ''];
+  };
+  const [min, text, src] = base(part);
+  const extra = [];
+  if (part.unlock) {
+    const before = part.instead ? base(part.instead) : null;
+    extra.push(`ab Lektion ${lesson(part.unlock)}${before ? `, vorher ${before[0]} ${before[1].split(',')[0]}` : ''}`);
   }
+  if (part.fallback) {
+    const fb = base(part.fallback[0]);
+    extra.push(`ohne Song ${fb[0]} ${fb[1].split(',')[0]}`);
+  }
+  return [min, extra.length ? `${text} (${extra.join('; ')})` : text, src];
 }
 
 function CheckItem({ c, lp }) {
@@ -315,6 +374,8 @@ function PlanTab({ ctx, current }) {
   return html`
     <section class="stack">${MODULES.map((m) => html`<${Stage} key=${m.n} m=${m} ctx=${ctx} current=${current}/>`)}</section>
 
+    <${SongList} ctx=${ctx} module=${current}/>
+
     <section class="lp-panel stack">
       <h3>Dein Problem-Akkord</h3>
       <p class="small muted">Justin lässt Chord Perfect auf dem Akkord üben, der am schwersten fällt. Wählst du einen, kommt er jeden Tag dran. Sonst laufen deine Akkorde reihum.</p>
@@ -346,7 +407,7 @@ function PlanTab({ ctx, current }) {
         <li><b>Zeit:</b> ${WEEK.minutes} Minuten am Tag, im Notfall ${WEEK.minimum}. So steht es in deinem Wochenplan (${WEEK.slots}).</li>
         <li><b>Inhalt:</b> Geübt wird, was in deinen Plänen steht. Deine eigenen Pläne ändert der Lernplan nicht.</li>
         <li><b>Schwerpunkt:</b> Justins Module geben vor, welcher Akkord neu ist, was neu dazukommt und wann es weitergeht. Seine Routinen dienen als Vorlage, nicht als Vorschrift.</li>
-        <li><b>Song-Arbeit:</b> Justin plant 10 von 20 Minuten für Songs ein. Hier sind es 5, weil deine Pläne mehr Technik enthalten. In Modul 7 zählen Songs für den Abschluss.</li>
+        <li><b>Song-Arbeit:</b> Justin plant 10 von 20 Minuten für Songs ein. Hier sind es 5, weil deine Pläne mehr Technik enthalten. Ohne Song gehen sie an 4 weitere Wechsel, weil dort dein Abstand zum Ziel gemessen ist. Für die Prüfpunkte in Modul 5 und 6 brauchst du je einen Song, für Grade 1 fünf.</li>
         <li><b>Reihenfolge:</b> Alles, was nicht täglich drankommt, läuft reihum. Ein Lesezeichen wandert pro Einheit weiter, damit jede Übung gleich oft kommt.</li>
         <li><b>Weiterkommen:</b> Ein Modul ist fertig, wenn alle Lektionen abgehakt und alle Prüfpunkte erfüllt sind. Akkordwechsel prüft Guitarhero mit deinen gemessenen Rekorden.</li>
         <li><b>Lektionen:</b> Wann du die nächste Lektion schaust, entscheidest du. Am Lektionstag ersetzt sie den größten Teil der Übungszeit. Justin sagt dazu: keine Eile, in einem Tempo, das sich gut anfühlt.</li>
@@ -404,6 +465,7 @@ export function LernRunPage({ index, setDockSlot }) {
     const keep = { ...patch };
     delete keep.hint;
     delete keep.link;
+    delete keep.label;
     updateLp({ overrides: { [step.id]: keep } });
   };
   return html`<${StepRunner} plan=${plan} index=${index} setDockSlot=${setDockSlot}
