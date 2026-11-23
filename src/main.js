@@ -8,6 +8,7 @@ import { bootState, settings } from './lib/state.js';
 import { setTimerDuration } from './lib/timer.js';
 import { panel, toast } from './lib/ui-state.js';
 import { ChordsPage } from './pages/chords.js';
+import { LernDonePage, LernplanPage, LernRunPage } from './pages/lernplan.js';
 import { DonePage, PracticePage, QuickPage, RunPage } from './pages/practice.js';
 import { ProgressPage } from './pages/progress.js';
 import { RecordingsPage } from './pages/recordings.js';
@@ -29,6 +30,10 @@ function Page({ setDockSlot, install }) {
     case 'plan': return html`<${RunPage} key=${`${b}-${c}`} planId=${b} index=${c} setDockSlot=${setDockSlot}/>`;
     case 'frei': return html`<${QuickPage} key=${b} type=${b}/>`;
     case 'fertig': return html`<${DonePage}/>`;
+    case 'lernplan':
+      if (b === 'lauf') return html`<${LernRunPage} key=${`lp-${c}`} index=${c} setDockSlot=${setDockSlot}/>`;
+      if (b === 'fertig') return html`<${LernDonePage}/>`;
+      return html`<${LernplanPage} tab=${b === 'plan' || b === 'kurs' ? b : ''}/>`;
     case 'akkorde': return html`<${ChordsPage}/>`;
     case 'strums': return html`<${QuickStrumPage}/>`;
     case 'riffs': return html`<${ScoreListPage} key="riff" kind="riff"/>`;

@@ -224,18 +224,15 @@ function PlanNameDialog({ naming, setNaming, onSave }) {
   <//>`;
 }
 
-export function RunPage({ planId, index, setDockSlot }) {
-  const plan = useStore(plans.store, (l) => l.find((p) => p.id === planId));
+// Führt Schritt für Schritt durch einen Plan. Wird von deinen Plänen und vom Lernplan benutzt.
+export function StepRunner({ plan, index, setDockSlot, path, donePath, backPath = '', onConfig }) {
   const i = Number(index) || 0;
-  useEffect(() => { clearTakes(); }, [planId, i]);
-  useEffect(() => {
-    if (plan) updateSettings({ lastPlanId: planId });
-  }, [planId]);
+  useEffect(() => { clearTakes(); }, [plan.id, i]);
 
-  const count = plan?.steps.length || 0;
+  const count = plan.steps.length;
   const goTo = (n) => {
-    if (n >= count) go('fertig');
-    else if (n >= 0) go(`plan/${planId}/${n}`);
+    if (n >= count) go(donePath);
+    else if (n >= 0) go(`${path}/${n}`);
   };
 
   const dock = html`<div class="row step-nav">
@@ -258,17 +255,9 @@ export function RunPage({ planId, index, setDockSlot }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [i, count]);
 
-  if (!plan) return html`<div class="page"><${Empty} title="Diesen Plan gibt es nicht mehr"><${Button} onClick=${() => go('')}>Zu den Plänen<//><//></div>`;
   const step = plan.steps[i];
-  if (!step) return html`<div class="page"><${Empty} title="Dieser Schritt existiert nicht mehr"><${Button} onClick=${() => go('')}>Zurück zum Plan<//><//></div>`;
+  if (!step) return html`<div class="page"><${Empty} title="Dieser Schritt existiert nicht mehr"><${Button} onClick=${() => go(backPath)}>Zurück<//><//></div>`;
 
-  const onConfig = (patch) => {
-    const fresh = plans.find(planId);
-    plans.put({
-      ...fresh,
-      steps: fresh.steps.map((s) => (s.id === step.id ? { ...s, config: { ...s.config, ...patch } } : s)),
-    });
-  };
   const Host = HOSTS[step.type];
   return html`<div class="page page-run">
     <${Fretboard} steps=${plan.steps} current=${i} onPick=${goTo}/>
@@ -276,9 +265,30 @@ export function RunPage({ planId, index, setDockSlot }) {
       <span class="run-index">Schritt ${i + 1} von ${count}, ${runLabel(step)}</span>
       ${step.type !== 'chord' && html`<h1>${stepTitle(step)}</h1>`}
     </header>
-    ${step.config.hint && html`<p class="step-hint">${step.config.hint}</p>`}
-    <${Host} key=${step.id} step=${step} onConfig=${onConfig}/>
+    ${(step.config.hint || step.config.link) && html`<div class="step-hint">
+      ${step.config.hint && html`<p>${step.config.hint}</p>`}
+      ${step.config.link && html`<a class="step-link" href=${step.config.link} target="_blank" rel="noopener"><${Icon} name="link" size=${18}/>${step.config.linkLabel || 'Link öffnen'}</a>`}
+    </div>`}
+    <${Host} key=${step.id} step=${step} onConfig=${(patch) => onConfig(step, patch)}/>
   </div>`;
+}
+
+export function RunPage({ planId, index, setDockSlot }) {
+  const plan = useStore(plans.store, (l) => l.find((p) => p.id === planId));
+  useEffect(() => {
+    if (plan) updateSettings({ lastPlanId: planId });
+  }, [planId]);
+
+  if (!plan) return html`<div class="page"><${Empty} title="Diesen Plan gibt es nicht mehr"><${Button} onClick=${() => go('')}>Zu den Plänen<//><//></div>`;
+
+  const onConfig = (step, patch) => {
+    const fresh = plans.find(planId);
+    plans.put({
+      ...fresh,
+      steps: fresh.steps.map((s) => (s.id === step.id ? { ...s, config: { ...s.config, ...patch } } : s)),
+    });
+  };
+  return html`<${StepRunner} plan=${plan} index=${index} setDockSlot=${setDockSlot} path=${`plan/${planId}`} donePath="fertig" onConfig=${onConfig}/>`;
 }
 
 const QUICK_DEFAULTS = {

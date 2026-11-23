@@ -39,6 +39,7 @@ const P = {
   metronome: '<path d="M8.5 3.5h7L20 21H4zM12 16l5-9.5M7 16h10"/>',
   tuner: '<path d="M4 17a9 9 0 0 1 16 0M12 17l4-7"/><circle cx="12" cy="17" r="1.5" fill="currentColor"/>',
   list: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  course: '<rect x="4.5" y="3.5" width="15" height="17" rx="1.5"/><path d="M8 8.5l1.5 1.5L12.5 7M8 15l1.5 1.5 3-3M15 9h1.5M15 15.5h1.5"/>',
   keep: '<path d="M6 3.5h12V21l-6-4.5L6 21z"/>',
 };
 

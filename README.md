@@ -18,11 +18,19 @@ Die Auswertung läuft im Browser (`src/lib/dsp.js`, `src/lib/analysis.js`, im Hi
 Sie ist auf eine Konzertgitarre mit Nylonsaiten eingestellt und mit künstlichem Gitarrenklang getestet.
 Der Plan „Testaufnahmen“ in der App sammelt echte Aufnahmen mit absichtlichen Fehlern für die Feinabstimmung.
 
+## Lernplan
+
+Der Menüpunkt Lernplan (`src/pages/lernplan.js`) schlägt jeden Tag eine Einheit von 20 Minuten vor.
+Die Übungen kommen aus den eigenen Plänen, Schwerpunkt und Prüfpunkte aus JustinGuitar Beginner Grade 1, Module 5 bis 7.
+Die Regeln stehen in `src/lib/lernplan.js`, die Kursdaten mit Quellen in `src/lib/lernplan-data.js`.
+Der Fortschritt liegt in den Einstellungen und ist damit Teil der Sicherung. Die eigenen Pläne ändert der Lernplan nicht.
+
 ## Tests
 
 Statischen Server auf Port 8123 starten (`python3 -m http.server 8123 --bind 127.0.0.1`), dann:
 
 - `node tests/tabformat.test.mjs`
+- `node tests/lernplan.test.mjs` (Lernplan: Verteilung, Zeiten, Prüfpunkte, Modulwechsel)
 - `node tests/analysis.test.mjs` (Erkennung mit künstlicher Gitarre)
 - `node tests/make-wavs.mjs <ordner>` und `node tests/e2e-analysis.cjs <ordner>`
 - `node tests/e2e-countdown.cjs` (Countdown endet auf Schlag 1)
@@ -34,6 +42,7 @@ Statischen Server auf Port 8123 starten (`python3 -m http.server 8123 --bind 127
 - `node tests/e2e-sort.cjs` (Plan-Schritte ziehen mit Maus und Finger, Pfeiltasten)
 - `node tests/e2e-voice.cjs` (Timer per Sprache mit simulierter Spracherkennung)
 - `node tests/e2e-update.cjs` (Update über den Offline-Speicher holt alle Dateien frisch; Rettung, wenn die App nicht startet)
+- `node tests/e2e-lernplan.cjs` (Lernplan: Heute, Einheit durchlaufen, Lektion und Prüfpunkt abhaken, eigene Pläne unverändert)
 - `node tests/e2e-rescue.cjs` (Fehlerbox statt leerer Seite; Rettung zeigt, wo der Start hängt; „Daten sichern“ direkt aus dem Browser-Speicher)
 - `node tests/e2e-flow.cjs <ordner-mit-testaudio>`
 - `node tests/e2e-tuner.cjs <ordner-mit-testaudio>`
