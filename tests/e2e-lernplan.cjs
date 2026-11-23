@@ -110,17 +110,28 @@ const readSettings = (p) => p.evaluate(() => new Promise((res) => {
   ok('Nächste Lektion rückt weiter', (await p.textContent('.lp-lesson h3')).includes('Exploring Strumming'));
   await p.click('.lp-tabs >> text=Kurs');
   await p.waitForSelector('.lp-lessons');
-  ok('Kurs zeigt 5.2 als gesehen', await p.locator('.lp-lessons li').nth(1).locator('input').isChecked());
-  ok('Links zu JustinGuitar', (await p.locator('.lp-lessons a[href^="https://www.justinguitar.com/guitar-lessons/"]').count()) === 29);
+  ok('Kurs zeigt 5.2 als gesehen', await p.locator('.lp-kurs', { hasText: 'Basic Theory' }).locator('.lp-lessons li').nth(1).locator('input').isChecked());
+  ok('Links zu JustinGuitar', (await p.locator('.lp-lessons a[href^="https://www.justinguitar.com/guitar-lessons/"]').count()) === 69);
+  ok('Modul 1 bis 4 als gesehen eingetragen', (await p.locator('.lp-kurs').first().locator('input:checked').count()) === 12);
 
   // 5. Prüfpunkt abhaken
   await p.click('.lp-tabs >> text=Plan');
   await p.waitForSelector('.lp-stage.cur');
-  const box = p.locator('.lp-stage.cur .lp-checks li').nth(1).locator('input');
-  await box.check();
+  ok('Modul 1 bis 5 offen', (await p.locator('.lp-stage.cur').count()) === 5);
+  ok('Kopfzeile nennt Modul 1 bis 5', (await p.textContent('.lp-head p')).includes('Modul 1 bis 5 offen'));
+  const m5 = p.locator('.lp-stage', { hasText: 'Modul 5:' });
+  ok('Modul 5 ist Schwerpunkt', (await m5.locator('summary').textContent()).includes('Schwerpunkt'));
+  await m5.locator('.lp-checks').first().locator('li').nth(1).locator('input').check();
   await p.waitForTimeout(200);
-  ok('Prüfpunkt gespeichert', (await readSettings(p)).lernplan.checks['m5-chords'] === true);
-  ok('Prüfpunkte zählen mit', (await p.textContent('.lp-stage.cur summary')).includes('Prüfpunkte 1/5'));
+  ok('Ziel gespeichert', (await readSettings(p)).lernplan.checks['m5-chords'] === true);
+  ok('Ziele zählen mit', (await m5.locator('summary').textContent()).includes('Ziele 1/5'));
+  const m1 = p.locator('.lp-stage', { hasText: 'Modul 1:' });
+  ok('Modul 1 zeigt deine Übungen', (await m1.locator('summary').textContent()).includes('Übungen 0/3'));
+  await m1.locator('.lp-checks').nth(1).locator('li', { hasText: 'Chord Perfect A' }).locator('input').check();
+  await p.waitForTimeout(200);
+  ok('Übung als „sitzt“ gespeichert', (await readSettings(p)).lernplan.ex['lp-pc-A'] === true);
+  ok('Übungen zählen mit', (await m1.locator('summary').textContent()).includes('Übungen 1/3'));
+  ok('Wechsel ohne Messung zum Abhaken offen', (await m1.locator('li', { hasText: 'Wechsel D–A' }).textContent()).includes('Noch nicht gemessen'));
   ok('Abdeckung ohne Lücken', (await p.locator('.lp-cov li.zero').count()) === 0);
   ok('Songs-Liste im Plan', (await p.textContent('.lp-songs')).includes('Eleanor Rigby'));
   await p.click('.lp-songs button');

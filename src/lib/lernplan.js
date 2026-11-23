@@ -3,12 +3,21 @@
 //
 // Regeln, kurz:
 // - Was geübt wird, kommt aus deinen eigenen Plänen (Akkorde, Wechsel, Strums, Riffs, Finger Stretch).
-// - Justins Module bestimmen den Schwerpunkt: den neuesten Akkord, neue Übungen, die Prüfpunkte.
-// - Alles andere läuft reihum. Gezählt wird in Einheiten: Eine ausgelassene Woche verschiebt nichts.
-import { GRADE1_CHORDS, HINTS, MODULES, SONG_NOTES, TEMPLATES } from './lernplan-data.js';
+// - Jede Übung gehört zu dem Modul, in dem Justin sie einführt. Ein Modul ist erst erfüllt, wenn
+//   seine Lektionen gesehen, Justins Ziele erreicht und alle deine Übungen daraus sitzen.
+// - Der Ablauf der Einheit folgt dem ersten offenen Modul, frühestens Modul 5 (START_FOCUS).
+// - Alles läuft reihum. Übungen, die noch nicht sitzen, kommen dreimal so oft wie solche, die sitzen.
+// - Gezählt wird in Einheiten: Eine ausgelassene Woche verschiebt nichts.
+import {
+  CHORD_MODULE, GRADE1_CHORDS, HINTS, MODULES, moduleByN, RIFF_MODULE, SONG_NOTES, START_FOCUS, STRETCH_MODULE, STRUM_MODULE, TEMPLATES,
+} from './lernplan-data.js';
+
+// Lektionen von Modul 1 bis 4 und „The C Chord“ hat Shy gesehen
+const SEEN = Object.fromEntries(MODULES.filter((m) => m.n < START_FOCUS).flatMap((m) => m.lessons.map((l) => [l.id, true])));
 
 export const LP_DEFAULT = {
-  lessons: { 'b1-501': true },
+  lessons: { ...SEEN, 'b1-501': true },
+  ex: {},
   checks: {},
   songs: 0,
   days: [],
@@ -19,6 +28,7 @@ export const LP_DEFAULT = {
 };
 
 export const OMC_GOAL = 30;
+export const OPEN_WEIGHT = 3;
 export const DAY_SECONDS = 20 * 60;
 const RIFF_SECONDS = 120;
 
@@ -91,6 +101,52 @@ export function newestChord(n, lp) {
   return 'G';
 }
 
+const matchModule = (table, name) => table.find(([re]) => re.test(name || ''))?.[1] ?? null;
+
+// Deine Übungen mit dem Modul, zu dem sie gehören. Die id ist dieselbe wie die des Schritts in der Einheit.
+export function exerciseList(ctx) {
+  const ex = collectExercises(ctx.plans);
+  const patterns = ctx.patterns || [];
+  const scores = ctx.scores || [];
+  const list = [];
+  if (ex.stretch) list.push({ id: 'lp-stretch', kind: 'stretch', label: ex.stretch.label, module: STRETCH_MODULE });
+  for (const c of ex.chords) list.push({ id: `lp-pc-${c.name}`, kind: 'chord', label: `Chord Perfect ${c.name}`, module: CHORD_MODULE[c.name] ?? null });
+  for (const p of ex.pairs) {
+    const ma = CHORD_MODULE[p.a];
+    const mb = CHORD_MODULE[p.b];
+    list.push({ id: `lp-omc-${pairKey(p.a, p.b)}`, kind: 'pair', label: `Wechsel ${pairLabel(p)}`, a: p.a, b: p.b, module: ma && mb ? Math.max(ma, mb) : null });
+  }
+  for (const st of ex.strums) {
+    const name = patterns.find((x) => x.id === st.patternId)?.name || 'Muster';
+    list.push({ id: `lp-strum-${st.patternId}`, kind: 'strum', label: name, module: matchModule(STRUM_MODULE, name) });
+  }
+  for (const r of ex.riffs) {
+    const title = scores.find((x) => x.id === r.scoreId)?.title || 'Riff';
+    list.push({ id: `lp-riff-${r.scoreId}`, kind: 'riff', label: title, module: matchModule(RIFF_MODULE, title) });
+  }
+  return list;
+}
+
+// Sitzt die Übung? Wechsel prüft die App an deinem besten Wert (ab 30 pro Minute), den Rest hakst du ab.
+export function exerciseStates(ctx, before = Infinity) {
+  const records = ctx.records || [];
+  return exerciseList(ctx).map((e) => {
+    let auto = null;
+    if (e.kind === 'pair') {
+      const v = bestPerMinute(records, e.a, e.b, before);
+      auto = { v, pass: v !== null && v >= OMC_GOAL };
+    }
+    const manual = Boolean(ctx.lp.ex?.[e.id]);
+    return { ...e, auto, manual, pass: Boolean(auto?.pass) || manual };
+  });
+}
+
+function pairsOf(chords) {
+  const out = [];
+  for (let i = 0; i < chords.length; i++) for (let j = i + 1; j < chords.length; j++) out.push([chords[i], chords[j]]);
+  return out;
+}
+
 // Prüfpunkte mit automatischer Auswertung, wo es Messwerte gibt
 export function evaluateChecks(m, ctx) {
   const { lp, records } = ctx;
@@ -104,15 +160,8 @@ export function evaluateChecks(m, ctx) {
         evidence: vals.map((x) => `${x.label}: ${x.v === null ? 'noch nicht gemessen' : `${Math.round(x.v)} pro Minute`}`).join(', '),
       };
     }
-    if (c.auto === 'g1omc') {
-      const pairs = [];
-      for (let i = 0; i < GRADE1_CHORDS.length; i++) {
-        for (let j = i + 1; j < GRADE1_CHORDS.length; j++) {
-          const a = GRADE1_CHORDS[i];
-          const b = GRADE1_CHORDS[j];
-          pairs.push({ a, b, v: bestPerMinute(records, a, b, upTo) });
-        }
-      }
+    if (c.auto === 'chords') {
+      const pairs = pairsOf(c.chords).map(([a, b]) => ({ a, b, v: bestPerMinute(records, a, b, upTo) }));
       const ok = pairs.filter((p) => p.v !== null && p.v >= OMC_GOAL).length;
       const open = pairs.filter((p) => p.v === null).length;
       const weak = pairs.filter((p) => p.v !== null && p.v < OMC_GOAL).sort((x, y) => x.v - y.v).slice(0, 3);
@@ -127,12 +176,14 @@ export function evaluateChecks(m, ctx) {
   });
 }
 
-export function moduleState(m, ctx) {
+export function moduleState(m, ctx, states = exerciseStates(ctx, ctx.checkBefore ?? Infinity)) {
   const lessons = lessonList(m);
   const lessonsDone = lessons.filter((id) => ctx.lp.lessons?.[id]).length;
   const checks = evaluateChecks(m, ctx);
   const required = checks.filter((c) => !c.optional);
   const checksDone = required.filter((c) => c.pass).length;
+  const exercises = states.filter((e) => e.module === m.n);
+  const exDone = exercises.filter((e) => e.pass).length;
   return {
     module: m,
     lessonsDone,
@@ -140,16 +191,34 @@ export function moduleState(m, ctx) {
     checks,
     checksDone,
     checksTotal: required.length,
-    done: lessonsDone === lessons.length && checksDone === required.length,
+    exercises,
+    exDone,
+    exTotal: exercises.length,
+    done: lessonsDone === lessons.length && checksDone === required.length && exDone === exercises.length,
   };
 }
 
-export function currentModule(ctx) {
-  return MODULES.find((m) => !moduleState(m, ctx).done) || MODULES[MODULES.length - 1];
+// Erstes Modul, das noch nicht erfüllt ist
+export function firstOpenModule(ctx) {
+  const states = exerciseStates(ctx, ctx.checkBefore ?? Infinity);
+  return MODULES.find((m) => !moduleState(m, ctx, states).done) || null;
 }
 
+// Nach diesem Modul richtet sich die Einheit: das erste offene, frühestens Modul 5
+export function currentModule(ctx) {
+  const open = firstOpenModule(ctx);
+  const n = Math.max(START_FOCUS, open ? open.n : MODULES[MODULES.length - 1].n);
+  return moduleByN(n);
+}
+
+// Nächste ungesehene Lektion bis einschließlich dieses Moduls
 export function nextLesson(m, lp) {
-  return m.lessons.find((l) => !lp.lessons?.[l.id]) || null;
+  for (const mod of MODULES) {
+    if (mod.n > m.n) break;
+    const l = mod.lessons.find((x) => !lp.lessons?.[x.id]);
+    if (l) return l;
+  }
+  return null;
 }
 
 // Nimmt k Einträge aus der Liste, Einheit für Einheit weiter. Über alle Einheiten kommt jeder gleich oft dran.
@@ -189,11 +258,35 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
   for (const c of chordNames) addPair(newest, c);
   if (m.n >= 7) for (const a of GRADE1_CHORDS) for (const b of GRADE1_CHORDS) addPair(a, b);
   const involves = (p, c) => p.a === c || p.b === c;
+  const pairId = (p) => `lp-omc-${pairKey(p.a, p.b)}`;
   const newPairs = m.n >= 7 ? [] : pairs.filter((p) => involves(p, newest));
-  const poolPairs = m.n >= 7 ? pairs : pairs.filter((p) => !involves(p, newest));
+
+  // Was noch nicht sitzt, kommt öfter: In der Reihe steht es dreimal, was sitzt, einmal
+  const passed = new Map(exerciseStates(ctx, before).map((e) => [e.id, e.pass]));
+  const isOpen = (id) => !passed.get(id);
+  const weighted = (list, idOf) => {
+    const open = list.filter((x) => isOpen(idOf(x)));
+    const out = list.slice();
+    for (let w = 1; w < OPEN_WEIGHT; w++) out.push(...open);
+    return out;
+  };
+  const statusWhy = (id, base = 'Reihum') => (passed.has(id) ? `${base}, ${isOpen(id) ? 'noch offen' : 'sitzt, zur Wiederholung'}` : base);
 
   const items = [];
   const used = new Set();
+  // Nimmt die nächsten k aus einer Reihe, ohne Doppelte in derselben Einheit
+  const draw = (list, k, start, idOf) => {
+    const out = [];
+    const seen = new Set();
+    for (let g = 0; out.length < k && g < list.length; g++) {
+      const x = list[(start + g) % list.length];
+      const id = idOf(x);
+      if (used.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      out.push(x);
+    }
+    return out;
+  };
   const add = (step, why, src) => {
     if (used.has(step.id)) return;
     used.add(step.id);
@@ -233,13 +326,14 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
   // Weitere Wechsel laufen wie ein Lesezeichen durch deine Liste: Jede Einheit nimmt die nächsten.
   // Wie viele pro Einheit, hängt nur vom Ablauf ab, nicht vom Tag. So kommt jedes Paar gleich oft dran.
   const perUnit = plan.filter((p) => p.kind === 'omc' && p.from === 'pool').reduce((sum, p) => sum + (p.n || 1), 0);
+  const poolPairs = weighted(m.n >= 7 ? pairs : pairs.filter((p) => !involves(p, newest)), pairId);
   let cursor = n * perUnit;
   const drawPool = (k) => {
     const out = [];
     for (let guard = 0; out.length < k && guard < poolPairs.length; guard++) {
       const p = poolPairs[cursor % poolPairs.length];
       cursor += 1;
-      if (!used.has(`lp-omc-${pairKey(p.a, p.b)}`)) out.push(p);
+      if (!used.has(pairId(p)) && !out.includes(p)) out.push(p);
     }
     return out;
   };
@@ -258,18 +352,19 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
         const k = part.n || 1;
         const picks = [];
         if (lp.problemChord && rot.includes(lp.problemChord)) picks.push(lp.problemChord);
-        const rest = rot.filter((c) => !picks.includes(c));
-        // Mehrere Perfect-Blöcke in einer Einheit teilen sich die Reihe
-        picks.push(...rotate(rest, k - picks.length, n));
+        const rest = weighted(rot.filter((c) => !picks.includes(c)), (c) => `lp-pc-${c}`);
+        picks.push(...draw(rest, k - picks.length, n * (k - picks.length), (c) => `lp-pc-${c}`));
         for (const c of picks) {
-          add(perfectStep(c, HINTS.perfect), c === lp.problemChord ? 'Dein Problem-Akkord' : 'Reihum', c === lp.problemChord ? 'Justin, Routine' : 'Dein Plan');
+          const id = `lp-pc-${c}`;
+          add(perfectStep(c, HINTS.perfect), c === lp.problemChord ? 'Dein Problem-Akkord' : statusWhy(id), c === lp.problemChord ? 'Justin, Routine' : 'Dein Plan');
         }
         break;
       }
       case 'omc': {
         const k = part.n || 1;
         if (part.from === 'new') {
-          for (const p of rotate(newPairs, k, n)) add(omcStep(p, HINTS.omcNew(newest)), `Wechsel mit ${newest}`, p.added ? `Justin, Modul ${m.n}` : 'Dein Plan');
+          const list = weighted(newPairs, pairId);
+          for (const p of draw(list, k, n * k, pairId)) add(omcStep(p, HINTS.omcNew(newest)), statusWhy(pairId(p), `Wechsel mit ${newest}`), p.added ? `Justin, Modul ${m.n}` : 'Dein Plan');
         } else if (part.from === 'weak') {
           const weak = pairs
             .map((p) => ({ p, v: bestPerMinute(records, p.a, p.b, before) }))
@@ -281,7 +376,7 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
           const missing = k - weak.length;
           if (missing > 0) run({ kind: 'omc', from: 'pool', n: missing });
         } else {
-          for (const p of drawPool(k)) add(omcStep(p, HINTS.omcPool), 'Reihum', p.added ? 'Grade 1' : 'Dein Plan');
+          for (const p of drawPool(k)) add(omcStep(p, HINTS.omcPool), statusWhy(pairId(p)), p.added ? 'Grade 1' : 'Dein Plan');
         }
         break;
       }
@@ -303,18 +398,20 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
             add({ id: `lp-strum-${first.patternId}`, type: 'strum', config: { ...first, bpm: Math.max(first.bpm || 80, 80), hint: HINTS.oldFaithful } }, 'Grade-1-Ziel', 'Grade 1');
             list = list.filter((s) => s.patternId !== first.patternId);
           }
-          for (const s of rotate(list, k - 1, n)) {
-            add({ id: `lp-strum-${s.patternId}`, type: 'strum', config: { ...s, hint: HINTS.strum } }, 'Reihum', 'Dein Plan');
+          const sid = (x) => `lp-strum-${x.patternId}`;
+          for (const st of draw(weighted(list, sid), k - 1, n * (k - 1), sid)) {
+            add({ id: sid(st), type: 'strum', config: { ...st, hint: HINTS.strum } }, statusWhy(sid(st)), 'Dein Plan');
           }
           break;
         }
-        for (const s of rotate(list, k, n)) {
-          add({ id: `lp-strum-${s.patternId}`, type: 'strum', config: { ...s, hint: m.n === 5 ? HINTS.strum5 : HINTS.strum } }, 'Reihum', 'Dein Plan');
+        const sid = (x) => `lp-strum-${x.patternId}`;
+        for (const st of draw(weighted(list, sid), k, n * k, sid)) {
+          add({ id: sid(st), type: 'strum', config: { ...st, hint: m.n === 5 ? HINTS.strum5 : HINTS.strum } }, statusWhy(sid(st)), 'Dein Plan');
         }
         break;
       }
       case 'sixeight':
-        add(timerStep('lp-68', '6/8-Strumming', 120, { hint: HINTS.sixEight, link: MODULES[1].lessons[3].url, linkLabel: 'Lektion öffnen' }), m.n === 6 ? 'Neu in Modul 6' : 'Aus Modul 6', `Justin, Modul ${m.n}`);
+        add(timerStep('lp-68', '6/8-Strumming', 120, { hint: HINTS.sixEight, link: moduleByN(6).lessons[3].url, linkLabel: 'Lektion öffnen' }), m.n === 6 ? 'Neu in Modul 6' : 'Aus Modul 6', `Justin, Modul ${m.n}`);
         break;
       case 'picking':
         add(timerStep('lp-pick', 'Wechselschlag', 60, { hint: HINTS.picking }), 'Neu in Modul 6', 'Justin, Modul 6');
@@ -329,8 +426,10 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
           pick = focus;
           why = `Riff aus Modul ${m.n}, jede zweite Einheit`;
         } else {
-          const others = focus ? riffs.filter((r) => r !== focus) : riffs;
-          pick = rotate(others, 1, focus ? Math.floor(n / 2) : n)[0] || focus;
+          const rid = (r) => `lp-riff-${r.scoreId}`;
+          const others = weighted(focus ? riffs.filter((r) => r !== focus) : riffs, rid);
+          pick = draw(others, 1, focus ? Math.floor(n / 2) : n, rid)[0] || focus;
+          why = statusWhy(rid(pick));
         }
         const isFocus = pick === focus;
         add({ id: `lp-riff-${pick.scoreId}`, type: 'riff', config: { scoreId: pick.scoreId, hint: isFocus ? HINTS.caya : HINTS.riff } }, why, isFocus ? `Justin, Modul ${m.n}` : 'Dein Plan');
@@ -338,7 +437,7 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
       }
       case 'song': {
         const note = [SONG_NOTES[m.n], m.n === 6 && lessonOn('b1-606') ? HINTS.forcing : ''].filter(Boolean).join(' ');
-        const songLink = m.n === 5 ? MODULES[0].lessons[6].url : m.n === 6 ? MODULES[1].lessons[6].url : MODULES[2].lessons[6].url;
+        const songLink = moduleByN(m.n).lessons[6].url;
         const song = rotate(songList, 1, n)[0];
         add(timerStep('lp-song', `Song: ${song}`, (part.min || 5) * 60, { hint: note, link: songLink, linkLabel: m.n === 7 ? 'Lektion öffnen' : 'Songliste öffnen' }),
           songList.length > 1 ? 'Deine Songs reihum' : 'Dein Song', `Justin, Modul ${m.n}`);
@@ -391,8 +490,8 @@ export function stepSeconds(step) {
   return step.type === 'riff' || step.type === 'song' ? RIFF_SECONDS : step.config.seconds || 60;
 }
 
-// Wie oft jede deiner Übungen in den nächsten `count` Einheiten drankommt
-export function coverage(ctx, { from = 0, count = 30, module: m = currentModule(ctx) } = {}) {
+// Wie oft jede deiner Übungen in den nächsten `count` Einheiten drankommt, mit Modul und Stand
+export function coverage(ctx, { from = 0, count = 30, module: m = currentModule({ ...ctx, checkBefore: ctx.before }) } = {}) {
   const ex = collectExercises(ctx.plans);
   const tally = new Map();
   const labels = new Map();
@@ -402,15 +501,17 @@ export function coverage(ctx, { from = 0, count = 30, module: m = currentModule(
       labels.set(s.id, s);
     }
   }
-  const rows = [];
-  const row = (group, id, label) => rows.push({ group, id, label, times: tally.get(id) || 0 });
-  if (ex.stretch) row('Aufwärmen', 'lp-stretch', ex.stretch.label);
-  for (const c of ex.chords) row('Akkorde', `lp-pc-${c.name}`, c.name);
-  for (const p of ex.pairs) row('Wechsel', `lp-omc-${pairKey(p.a, p.b)}`, pairLabel(p));
-  for (const st of ex.strums) row('Strums', `lp-strum-${st.patternId}`, null);
-  for (const r of ex.riffs) row('Riffs', `lp-riff-${r.scoreId}`, null);
+  const GROUP = { stretch: 'Aufwärmen', chord: 'Akkorde', pair: 'Wechsel', strum: 'Strums', riff: 'Riffs' };
+  const rows = exerciseStates(ctx, ctx.before ?? Infinity).map((e) => ({
+    group: GROUP[e.kind],
+    id: e.id,
+    label: e.kind === 'chord' ? e.label.replace('Chord Perfect ', '') : e.kind === 'pair' ? e.label.replace('Wechsel ', '') : e.label,
+    module: e.module,
+    pass: e.pass,
+    times: tally.get(e.id) || 0,
+  }));
   const mine = new Set(rows.map((r) => r.id));
   const added = [...tally.entries()].filter(([id]) => !mine.has(id)).map(([id, times]) => ({ id, times, step: labels.get(id) }));
-  const other = [...ex.other, ...ex.songs.map((s) => ({ step: { type: 'song', config: s } }))];
+  const other = [...ex.other, ...ex.songs.map((x) => ({ step: { type: 'song', config: x } }))];
   return { rows, added, other, count };
 }

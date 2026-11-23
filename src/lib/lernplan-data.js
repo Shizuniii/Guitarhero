@@ -1,4 +1,4 @@
-// Kursdaten für den Lernplan: JustinGuitar Beginner Grade 1, Module 5 bis 7.
+// Kursdaten für den Lernplan: JustinGuitar Beginner Grade 1, Module 1 bis 7.
 // Titel, Links, Längen, Routinen und Ziele stammen von justinguitar.com (abgerufen im November 2026).
 // Was dort nicht steht, steht hier nicht: fehlende Längen bleiben leer, Kurzbeschreibungen gibt es nur,
 // wo die Lektionsseite gelesen werden konnte.
@@ -8,13 +8,133 @@ const L = (slug) => `https://www.justinguitar.com/guitar-lessons/${slug}`;
 export const COURSE = {
   title: 'JustinGuitar Beginner Grade 1',
   url: 'https://www.justinguitar.com/classes/beginner-guitar-course-grade-one',
-  // Laut Shy: Module 0 bis 4 fertig, in Modul 5 „The C Chord“ gesehen (Stand 23. November 2026)
+  // Laut Shy: Lektionen von Modul 0 bis 4 gesehen, in Modul 5 „The C Chord“ (Stand 23. November 2026).
+  // Die Übungen aus Modul 1 bis 4 sitzen aber noch nicht alle, deshalb werden sie mitgeprüft.
   doneBefore: 'Module 0 bis 4',
 };
+
+// Ab diesem Modul richtet sich der Ablauf der Einheit (Shy schaut gerade die Lektionen von Modul 5).
+// Modul 1 bis 4 laufen mit und müssen erfüllt sein, bevor Modul 6 kommt.
+export const START_FOCUS = 5;
+
+// In welchem Modul Justin etwas einführt. Daran hängt, zu welchem Modul deine Übungen zählen.
+export const CHORD_MODULE = { A: 1, D: 1, E: 2, Am: 3, Em: 3, Dm: 4, C: 5, G: 6 };
+export const STRUM_MODULE = [[/old faithful/i, 4], [/^d dudud$/i, 3], [/^d dud d$/i, 3]];
+export const RIFF_MODULE = [[/peter gunn/i, 2], [/seven nation/i, 3], [/sunshine/i, 4], [/come as you are/i, 5]];
+export const STRETCH_MODULE = 4;
 
 export const GRADE1_CHORDS = ['A', 'D', 'E', 'Am', 'Dm', 'Em', 'C', 'G'];
 
 export const MODULES = [
+  {
+    n: 1,
+    title: 'A & D Chords: Play Your First Song!',
+    de: 'A und D, Ankerfinger, Ein-Minuten-Wechsel',
+    lessons: [
+      { id: 'b1-105', title: 'How To Play The D Chord', dur: '08:33', url: L('how-to-play-the-d-chord-b1-105') },
+      { id: 'b1-108', title: 'How To Play The A Chord', dur: '06:22', url: L('how-to-play-the-a-chord-b1-108') },
+      { id: 'b1-109', title: 'How To Use Anchor Fingers', dur: '03:02', url: L('how-to-use-anchor-fingers-b1-109') },
+      { id: 'b1-110', title: 'One Minute Changes Exercise', dur: '05:22', url: L('one-minute-changes-exercise-b1-110') },
+      { id: 'b1-111', title: 'Bars & Strumming On 1', dur: '04:47', url: L('bars-strumming-on-1-b1-111') },
+      { id: 'b1-112', title: 'How To Strum The Correct Strings', dur: '02:14', url: L('how-to-strum-the-correct-strings-b1-112') },
+      { id: 'b1-113', title: 'How To Minimize Finger Pain', dur: '04:10', url: L('how-to-minimize-finger-pain-b1-113') },
+      { id: 'b1-114', title: 'Super Easy 2 Chord Songs', dur: '05:47', url: L('super-easy-2-chord-songs-b1-114') },
+      { id: 'b1-115', title: 'How To Use Justin\'s Song App', dur: '05:07', url: L('how-to-use-justin-s-song-app-b1-115') },
+      { id: 'b1-116', title: 'Module 1 Practice Routine', dur: '05:14', url: L('module-1-practice-routine-b1-116'), sum: 'Justins erste 20-Minuten-Routine und wann es weitergeht.' },
+      { id: 'b1-117', title: 'Using My Practice Assistant', dur: '10:06', url: L('using-my-practice-assistant-b1-117') },
+      { id: 'b1-118', title: 'When to move on from Module 1?', dur: '02:40', url: L('when-to-move-on-from-module-1-b1-118') },
+    ],
+    routine: {
+      url: L('module-1-practice-routine-b1-116'),
+      items: ['1′ Gitarre stimmen', '3′ Chord Perfect D', '3′ Chord Perfect A', '2′ Ankerfinger A und D', '1′ OMC A → D', '1′ OMC D → A', '10′ Songs mit zwei Akkorden'],
+    },
+    checks: [
+      { id: 'm1-memo', text: 'A und D auswendig' },
+      { id: 'm1-omc', text: 'Mindestens 30 Akkordwechsel pro Minute', auto: 'routine', pairs: [['A', 'D']], how: 'Gemessen an A–D.' },
+      { id: 'm1-song', text: 'Einen Song ausprobiert' },
+    ],
+  },
+  {
+    n: 2,
+    title: 'Rhythm & Chord Changes + Your First Riff!',
+    de: 'E-Akkord, Fuß mitklopfen, Schlagtechnik, erster Riff',
+    lessons: [
+      { id: 'b1-201', title: 'How To Play The E Chord', dur: '06:35', url: L('how-to-play-the-e-chord-b1-201') },
+      { id: 'b1-202', title: 'E Chord Anchors & Tricks', dur: '02:24', url: L('e-chord-anchors-tricks-b1-202') },
+      { id: 'b1-203', title: 'Tapping Your Foot', dur: '04:49', url: L('tapping-your-foot-b1-203') },
+      { id: 'b1-204', title: 'Strumming Mechanics', dur: '09:43', url: L('strumming-mechanics-b1-204') },
+      { id: 'b1-205', title: 'Strumming On The Beat', dur: '06:38', url: L('strumming-on-the-beat-b1-205') },
+      { id: 'b1-206', title: 'Chord Changes For One', dur: '03:39', url: L('chord-changes-for-one-b1-206') },
+      { id: 'b1-207', title: 'Peter Gunn Theme', dur: '05:52', url: L('peter-gunn-theme-b1-207') },
+      { id: 'b1-208', title: 'Songs For Module 2', dur: '04:16', url: L('songs-for-module-2-b1-208') },
+      { id: 'b1-209', title: 'Module 2 Practice Routine', dur: '07:36', url: L('module-2-practice-routine-b1-209'), sum: 'Justins 20-Minuten-Routine und die Ziele für Modul 2.' },
+    ],
+    routine: {
+      url: L('module-2-practice-routine-b1-209'),
+      items: ['Gitarre stimmen', '2′ Chord Perfect E', '1′ Chord Perfect D', '1′ Chord Perfect A', '2′ Ankerfinger E, A und D', '1′ OMC A → D', '1′ OMC A → E', '1′ OMC D → E', '1′ Peter Gunn Theme', '10′ Songs für Modul 2'],
+    },
+    checks: [
+      { id: 'm2-memo', text: 'E auswendig, dazu A und D' },
+      { id: 'm2-anchor', text: 'Ankerfinger bei diesen Wechseln sicher' },
+      { id: 'm2-omc', text: 'Rund 30 Wechsel pro Minute zwischen allen bisherigen Akkorden', auto: 'chords', chords: ['A', 'D', 'E'], how: 'Gemessen an A–D, A–E und D–E.' },
+      { id: 'm2-riff', text: 'Spaß mit dem Peter Gunn Theme gehabt' },
+      { id: 'm2-song', text: 'Einen oder zwei Songs mit allen drei Akkorden ausprobiert' },
+    ],
+  },
+  {
+    n: 3,
+    title: 'Capo, Minor Chords & Up Strums',
+    de: 'Am und Em, Aufschläge, Capo',
+    lessons: [
+      { id: 'b1-301', title: 'What Are Minor Chords', dur: '04:23', url: L('what-are-minor-chords-b1-301') },
+      { id: 'b1-302', title: 'The E Minor Chord', dur: '01:53', url: L('the-e-minor-chord-b1-302') },
+      { id: 'b1-303', title: 'The A Minor Chord', dur: '06:02', url: L('the-a-minor-chord-b1-303') },
+      { id: 'b1-304', title: 'Holding the Guitar', dur: '02:43', url: L('holding-the-guitar-b1-304') },
+      { id: 'b1-305', title: 'Counting Ands', dur: '03:26', url: L('counting-ands-b1-305') },
+      { id: 'b1-306', title: 'All About Up Strums', dur: '06:22', url: L('all-about-up-strums-b1-306') },
+      { id: 'b1-307', title: 'Strumming Patterns With Ups', dur: '07:48', url: L('strumming-patterns-with-ups-b1-307'), sum: 'Die Muster D DUD D und D DUDUD, erst auf gedämpften Saiten.' },
+      { id: 'b1-308', title: 'All About Capos', dur: '08:38', url: L('all-about-capos-b1-308') },
+      { id: 'b1-309', title: 'Seven Nation Army', dur: '06:16', url: L('seven-nation-army-b1-309') },
+      { id: 'b1-310', title: 'Songs For Module 3', dur: '02:07', url: L('songs-for-module-3-b1-310') },
+      { id: 'b1-311', title: 'Module 3 Practice Routine', dur: '05:54', url: L('module-3-practice-routine-b1-311'), sum: 'Justins 20-Minuten-Routine und die Ziele für Modul 3.' },
+    ],
+    routine: {
+      url: L('module-3-practice-routine-b1-311'),
+      items: ['Gitarre stimmen', '1′ Chord Perfect Am', '1′ Chord Perfect Em', '1′ OMC Am → E', '1′ OMC Em → D', '1′ OMC Am → Em', '1′ Ankerfinger E, A und D', '2′ Strumming', '2′ Seven Nation Army', '10′ Songs für Modul 3'],
+    },
+    checks: [
+      { id: 'm3-memo', text: 'Am und Em auswendig, dazu alle bisherigen Akkorde' },
+      { id: 'm3-omc', text: 'Rund 30 Wechsel pro Minute zwischen allen bisherigen Akkorden', auto: 'chords', chords: ['A', 'D', 'E', 'Am', 'Em'], how: 'Alle 10 Paare aus A, D, E, Am und Em.' },
+      { id: 'm3-riff', text: 'Spaß mit Seven Nation Army gehabt' },
+      { id: 'm3-song', text: 'Einen oder zwei Songs mit Am und Em ausprobiert' },
+    ],
+  },
+  {
+    n: 4,
+    title: 'Metronome, Stretches & The Pattern',
+    de: 'Dm, Finger Stretch, Metronom, Old Faithful',
+    lessons: [
+      { id: 'b1-401', title: 'Beginner Finger Stretches', dur: '09:02', url: L('beginner-finger-stretches-b1-401') },
+      { id: 'b1-402', title: 'The D Minor Chord', dur: '05:03', url: L('the-d-minor-chord-b1-402') },
+      { id: 'b1-403', title: 'Meet The Metronome', dur: '04:25', url: L('meet-the-metronome-b1-403') },
+      { id: 'b1-404', title: 'THE Strumming Pattern', dur: '08:35', url: L('the-strumming-pattern-b1-404') },
+      { id: 'b1-405', title: 'How To Read Guitar TAB', dur: '04:56', url: L('how-to-read-guitar-tab-b1-405') },
+      { id: 'b1-406', title: 'Sunshine Of Your Love', dur: '06:08', url: L('sunshine-of-your-love-b1-406') },
+      { id: 'b1-407', title: 'Songs For Module 4', dur: '02:47', url: L('songs-for-module-4-b1-407') },
+      { id: 'b1-408', title: 'Module 4 Practice Routine', dur: '06:05', url: L('module-4-practice-routine-b1-408'), sum: 'Justins 20-Minuten-Routine und die Ziele für Modul 4.' },
+    ],
+    routine: {
+      url: L('module-4-practice-routine-b1-408'),
+      items: ['Gitarre stimmen', '2′ Finger Stretch', '1′ Chord Perfect Dm', '1′ der Akkord, der am schwersten fällt', '2′ die schwierigsten Wechsel, zwei Durchgänge', '2′ Old Faithful', '2′ Sunshine Of Your Love', '10′ Songs für Modul 4'],
+    },
+    checks: [
+      { id: 'm4-omc', text: 'Rund 30 Akkordwechsel pro Minute', auto: 'chords', chords: ['A', 'D', 'E', 'Am', 'Dm', 'Em'], how: 'Alle 15 Paare aus A, D, E, Am, Dm und Em. Justin lässt dafür die schwierigsten Wechsel üben.' },
+      { id: 'm4-memo', text: 'A, D, E, Am, Dm und Em auswendig' },
+      { id: 'm4-strum', text: 'Old Faithful sitzt gleichmäßig und bequem auf gedämpften Saiten, am besten mit Metronom' },
+      { id: 'm4-riff', text: 'Sunshine Of Your Love schaffen' },
+      { id: 'm4-song', text: 'Mindestens einen Song ordentlich und größtenteils durchspielen' },
+    ],
+  },
   {
     n: 5,
     title: 'Basic Theory & Strumming Development',
@@ -98,7 +218,7 @@ export const MODULES = [
       { id: 'g1-tune', text: 'Die Gitarre mit einem Stimmgerät stimmen' },
       { id: 'g1-memo', text: 'Die acht Akkorde A, D, E, Am, Dm, Em, C und G auswendig, in beliebiger Reihenfolge, sofort' },
       { id: 'g1-perfect', text: 'Alle acht Akkorde öfter sauber als nicht (über 50 %): alle Töne klingen, gedämpfte Saiten bleiben stumm, nichts schnarrt' },
-      { id: 'g1-omc', text: '30 Wechsel pro Minute bei jedem Akkordpaar', auto: 'g1omc', how: 'Alle 28 Paare der acht Akkorde, jedes mit mindestens 30 pro Minute. Justin: 60 wären toll, sind für die meisten aber zu viel verlangt.' },
+      { id: 'g1-omc', text: '30 Wechsel pro Minute bei jedem Akkordpaar', auto: 'chords', chords: GRADE1_CHORDS, how: 'Alle 28 Paare der acht Akkorde, jedes mit mindestens 30 pro Minute. Justin: 60 wären toll, sind für die meisten aber zu viel verlangt.' },
       { id: 'g1-strum', text: 'Old Faithful (D DU UD) mit 80 BPM zum Metronom' },
       { id: 'g1-songs', text: 'Fünf leichte Songs so auswendig, dass du sie auf einer Party spielen kannst', count: 5 },
       { id: 'g1-perform', text: 'Einen Song vor jemandem spielen oder dich dabei aufnehmen' },
@@ -108,7 +228,10 @@ export const MODULES = [
   },
 ];
 
-export const ALL_LESSONS = MODULES.flatMap((m) => m.lessons.map((l, i) => ({ ...l, module: m.n, num: `${m.n}.${i + 1}` })));
+for (const m of MODULES) m.lessons.forEach((l, i) => { l.module = m.n; l.num = `${m.n}.${i + 1}`; });
+export const ALL_LESSONS = MODULES.flatMap((m) => m.lessons);
+export const moduleByN = (n) => MODULES.find((m) => m.n === n);
+export const lessonById = (id) => ALL_LESSONS.find((l) => l.id === id);
 
 // Hinweise, die beim Üben über dem Schritt stehen. Inhalte aus den genannten Lektionen.
 export const HINTS = {
