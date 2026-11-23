@@ -18,9 +18,10 @@
   <div id="app"></div>
   <noscript>Guitarhero braucht JavaScript.</noscript>
   <script>
-    // Rettung: Lassen sich die Programmdateien nicht laden (z. B. alte und neue Dateien gemischt im
-    // Offline-Speicher), bliebe die Seite leer. Dann gibt es einen Knopf, der nur die Programmdateien neu lädt.
-    // Pläne, Akkorde, Aufnahmen und Einstellungen liegen in der Datenbank und bleiben erhalten.
+    // Rettung: Bleibt die Seite leer (Programmdateien passen nicht zusammen, der Start hängt oder bricht ab),
+    // erscheint statt der leeren Seite eine Box. Sie zeigt den Grund und bietet zwei Knöpfe:
+    // "Daten sichern" liest die Datenbank direkt aus und lädt eine Sicherung herunter, ganz ohne den Rest der App.
+    // "Programmdateien neu laden" entfernt nur Offline-Speicher und Service Worker, nie die Datenbank.
     (function () {
       // Bei jedem Start sofort nach einer neuen Version fragen, auch wenn der Rest nicht startet.
       try {
@@ -29,30 +30,87 @@
         }
       } catch (e) { /* ohne Service Worker egal */ }
       var failed = '';
-      window.addEventListener('error', function (e) {
-        if (!window.__ghStarted) { failed = (e && e.message) || 'Fehler beim Laden'; setTimeout(show, 300); }
-      });
-      setTimeout(show, 15000);
+      var BTN = 'font:inherit;font-weight:700;padding:10px 16px;border-radius:8px;border:0;cursor:pointer;margin:0 8px 8px 0';
+      function app() { return document.getElementById('app'); }
+      function empty() { var a = app(); return !a || a.childElementCount === 0; }
+      function note(msg) { failed = String(msg || 'Fehler'); later(400); }
+      function later(ms) { setTimeout(function () { if (empty()) show(); }, ms); }
+      window.addEventListener('error', function (e) { note(e && (e.message || (e.error && e.error.message))); });
+      window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; note(r && (r.message || r.name || r)); });
+      later(12000);
+      later(30000);
       function show() {
-        if (window.__ghStarted || document.getElementById('rescue')) return;
+        var db = /^Daten laden/.test(window.__ghStep || '') ? (window.__ghDbBlocked ? ' Datenbank blockiert.' : window.__ghDbOpen ? ' Datenbank offen.' : ' Datenbank öffnet nicht.') : '';
+        var step = window.__ghStep ? 'Startschritt: ' + window.__ghStep + '.' + db + ' ' : '';
+        var info = step + (failed ? 'Meldung: ' + failed : (window.__ghStep ? 'Der Start hängt bei diesem Schritt.' : ''));
+        if (document.getElementById('rescue')) { document.getElementById('rescue-msg').textContent = info; return; }
         var box = document.createElement('div');
         box.id = 'rescue';
         box.setAttribute('role', 'alert');
-        box.style.cssText = 'max-width:560px;margin:12vh auto;padding:24px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(0,0,0,.25);color:inherit;font:inherit;line-height:1.5';
+        box.style.cssText = 'max-width:600px;margin:10vh auto;padding:24px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(0,0,0,.25);color:inherit;font:inherit;line-height:1.5';
         box.innerHTML = '<h1 style="margin:0 0 8px;font-size:1.6rem">Guitarhero startet nicht</h1>' +
-          '<p style="margin:0 0 12px">Wahrscheinlich passen gespeicherte Programmdateien nach einem Update nicht zusammen. ' +
-          'Der Knopf lädt nur die Programmdateien neu. Deine Pläne, Akkorde, Aufnahmen und Einstellungen bleiben erhalten.</p>' +
-          '<button type="button" id="rescue-go" style="font:inherit;font-weight:700;padding:10px 16px;border-radius:8px;border:0;cursor:pointer">Programmdateien neu laden</button>' +
+          '<p style="margin:0 0 12px">Deine Pläne, Akkorde, Aufnahmen und Einstellungen sind noch da. Mit „Daten sichern“ lädst du sie als Datei herunter, das geht auch jetzt.</p>' +
+          '<button type="button" id="rescue-save" style="' + BTN + '">Daten sichern</button>' +
+          '<button type="button" id="rescue-go" style="' + BTN + '">Programmdateien neu laden</button>' +
+          '<p id="rescue-state" style="margin:4px 0 0"></p>' +
           '<p id="rescue-msg" style="margin:12px 0 0;opacity:.75;font-size:.9em"></p>';
         document.body.appendChild(box);
-        if (failed) document.getElementById('rescue-msg').textContent = 'Technische Meldung: ' + failed;
+        document.getElementById('rescue-msg').textContent = info;
         document.getElementById('rescue-go').onclick = repair;
+        document.getElementById('rescue-save').onclick = saveData;
       }
-      function box() { return document.getElementById('rescue'); }
+      function state(t) { var el = document.getElementById('rescue-state'); if (el) el.textContent = t; }
+
+      // Sicherung im selben Format wie Einstellungen > Sicherung (ohne Aufnahmen), direkt aus IndexedDB
+      function req(r) { return new Promise(function (ok, bad) { r.onsuccess = function () { ok(r.result); }; r.onerror = function () { bad(r.error); }; }); }
+      function b64(buf) { var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); }
+      function enc(v) {
+        if (v instanceof ArrayBuffer) return { __bin: b64(v) };
+        if (Array.isArray(v)) return v.map(enc);
+        if (v && typeof v === 'object' && !(v instanceof Blob)) { var o = {}; for (var k in v) o[k] = enc(v[k]); return o; }
+        return v;
+      }
+      function saveData() {
+        state('Sichere …');
+        var done = false;
+        setTimeout(function () { if (!done) state('Der Browser-Speicher antwortet seit 15 Sekunden nicht. Das ist wahrscheinlich auch der Grund, warum der Start hängt.'); }, 15000);
+        var out = { app: 'guitarhero', version: 1, exportedAt: new Date().toISOString(), stores: {}, blobs: {} };
+        var open = indexedDB.open('griffbrett');
+        open.onblocked = function () { state('Der Browser-Speicher ist blockiert. Schließ alle anderen Guitarhero-Fenster und -Tabs und drück nochmal „Daten sichern“.'); };
+        req(open).then(function (db) {
+          var names = [].slice.call(db.objectStoreNames);
+          var text = names.filter(function (n) { return n !== 'blobs' && n !== 'kv' && n !== 'recordings'; });
+          var tx = function (n) { return db.transaction(n, 'readonly').objectStore(n); };
+          return Promise.all(text.map(function (n) { return req(tx(n).getAll()).then(function (items) { out.stores[n] = items.map(enc); }); }))
+            .then(function () { return names.indexOf('kv') >= 0 ? req(tx('kv').get('settings')).then(function (s) { out.settings = s; }) : 0; })
+            .then(function () { return names.indexOf('recordings') >= 0 ? req(tx('recordings').getAllKeys()) : []; })
+            .then(function (recIds) {
+              if (names.indexOf('blobs') < 0) return 0;
+              return req(tx('blobs').getAllKeys()).then(function (keys) {
+                keys = keys.filter(function (k) { return recIds.indexOf(k) < 0; });
+                return keys.reduce(function (p, k) {
+                  return p.then(function () { return req(tx('blobs').get(k)); }).then(function (blob) {
+                    if (!blob || !blob.arrayBuffer) return 0;
+                    return blob.arrayBuffer().then(function (buf) { out.blobs[k] = { type: blob.type, data: b64(buf) }; });
+                  });
+                }, Promise.resolve());
+              });
+            });
+        }).then(function () {
+          done = true;
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
+          a.download = 'guitarhero-sicherung-' + new Date().toISOString().slice(0, 10) + '.json';
+          document.body.appendChild(a); a.click(); a.remove();
+          var n = 0; for (var k in out.stores) n += out.stores[k].length;
+          state('Gesichert: ' + n + ' Einträge. Die Datei liegt in deinem Download-Ordner.');
+        }).catch(function (e) { done = true; state('Sichern ging nicht: ' + (e && e.message || e)); });
+      }
+
       function repair() {
         var btn = document.getElementById('rescue-go');
         btn.disabled = true;
-        btn.textContent = 'Lade neu …';
+        state('Lade Programmdateien neu …');
         var sw = navigator.serviceWorker && navigator.serviceWorker.getRegistrations
           ? navigator.serviceWorker.getRegistrations().then(function (r) { return Promise.all(r.map(function (x) { return x.unregister(); })); })
           : Promise.resolve();
@@ -70,8 +128,9 @@
           .then(function () {
             // Ein Neuladen im selben Fenster nimmt in Chrome noch die alten Dateien aus dem Arbeitsspeicher.
             // Nach Schließen und Öffnen ist alles frisch.
-            box().innerHTML = '<h1 id="rescue-done" style="margin:0 0 8px;font-size:1.6rem">Fertig</h1>' +
-              '<p style="margin:0">Schließ Guitarhero jetzt ganz und öffne es wieder. Dann startet die neue Version.</p>';
+            state('');
+            document.getElementById('rescue').insertAdjacentHTML('beforeend', '<h2 id="rescue-done" style="margin:16px 0 4px;font-size:1.2rem">Fertig</h2>' +
+              '<p style="margin:0">Schließ Guitarhero jetzt ganz und öffne es wieder. Dann startet die neue Version.</p>');
           });
       }
     })();

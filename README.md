@@ -34,6 +34,7 @@ Statischen Server auf Port 8123 starten (`python3 -m http.server 8123 --bind 127
 - `node tests/e2e-sort.cjs` (Plan-Schritte ziehen mit Maus und Finger, Pfeiltasten)
 - `node tests/e2e-voice.cjs` (Timer per Sprache mit simulierter Spracherkennung)
 - `node tests/e2e-update.cjs` (Update über den Offline-Speicher holt alle Dateien frisch; Rettung, wenn die App nicht startet)
+- `node tests/e2e-rescue.cjs` (Fehlerbox statt leerer Seite; Rettung zeigt, wo der Start hängt; „Daten sichern“ direkt aus dem Browser-Speicher)
 - `node tests/e2e-flow.cjs <ordner-mit-testaudio>`
 - `node tests/e2e-tuner.cjs <ordner-mit-testaudio>`
 

@@ -81,9 +81,16 @@ export const records = createCollection('records');
 export const sessions = createCollection('sessions');
 
 export async function bootState() {
+  // Startschritte für die Rettung in index.html: Hängt der Start, zeigt sie, bei welchem Teil der Daten.
+  const step = (name) => { globalThis.__ghStep = `Daten laden (${name})`; };
+  step('Einstellungen');
   const saved = await dbGet('kv', 'settings');
   if (saved) settings.set(deepMerge(DEFAULT_SETTINGS, saved));
-  await Promise.all([plans, customChords, patterns, scores, recordings, records, sessions].map((c) => c.load()));
+  for (const c of [plans, customChords, patterns, scores, recordings, records, sessions]) {
+    step(c.name);
+    await c.load();
+  }
+  step('Beispiele');
   if (!settings.get().seeded) {
     const seed = seedData();
     for (const p of seed.patterns) await patterns.put(p);

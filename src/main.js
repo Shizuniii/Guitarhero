@@ -15,6 +15,7 @@ import { ScoreEditPage, ScoreListPage, ScoreTabsPage } from './pages/scores.js';
 import { SettingsPage } from './pages/settings.js';
 import { QuickStrumPage } from './pages/strums.js';
 import { ConfirmHost } from './ui/common.js';
+import { Guard } from './ui/guard.js';
 import { Dock, Panels, Rail, Toasts, useGlobalKeys } from './ui/shell.js';
 
 function Page({ setDockSlot, install }) {
@@ -40,6 +41,13 @@ function Page({ setDockSlot, install }) {
   }
 }
 
+// Ein Fehler auf einer Seite zeigt eine Fehlerbox; Menü und Leiste bleiben bedienbar.
+// Der Schlüssel setzt die Box beim Wechsel auf eine andere Seite zurück.
+function PageGuard(props) {
+  const { parts } = useRoute();
+  return html`<${Guard} key=${parts.join('/')} where=${`Seite ${parts[0] || 'Üben'}`}><${Page} ...${props}/><//>`;
+}
+
 function App() {
   const [slot, setSlot] = useState(null);
   const [installEvent, setInstallEvent] = useState(null);
@@ -62,7 +70,7 @@ function App() {
 
   return html`<div class=${`shell ${drawerOpen ? 'drawer-open' : ''}`}>
     <${Rail}/>
-    <main class="main" id="main"><${Page} setDockSlot=${setSlot} install=${install}/></main>
+    <main class="main" id="main"><${PageGuard} setDockSlot=${setSlot} install=${install}/></main>
     <${Dock} slot=${slot}/>
     <${Panels}/>
     <${Toasts}/>
@@ -85,17 +93,27 @@ function registerWorker() {
   }).catch(() => {});
 }
 
-// Ist dieser Punkt erreicht, ließen sich alle Programmdateien laden (siehe Rettung in index.html).
+// Ist dieser Punkt erreicht, ließen sich alle Programmdateien laden. Die Startschritte stehen in
+// window.__ghStep, damit die Rettung in index.html bei einem Hänger sagen kann, wo es steht.
 window.__ghStarted = true;
-document.getElementById('rescue')?.remove();
+const step = (name) => { window.__ghStep = name; };
+
+// Der Aufnahme-Ordner ist für den Start nicht nötig: höchstens 3 Sekunden warten
+const atMost = (ms, promise) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms))]);
 
 async function boot() {
   try {
-    await Promise.all([bootState(), loadChords()]);
+    await bootState();
+    step('Akkorde laden');
+    await loadChords();
     loadMetronomeSettings();
     setTimerDuration(settings.get().timerSeconds);
-    await loadFolder();
-    render(html`<${App}/>`, document.getElementById('app'));
+    step('Aufnahme-Ordner prüfen');
+    await atMost(3000, loadFolder().catch(() => {}));
+    step('Anzeige aufbauen');
+    render(html`<${Guard} where="App"><${App}/><//>`, document.getElementById('app'));
+    step('');
+    document.getElementById('rescue')?.remove();
     registerWorker();
   } catch (err) {
     document.getElementById('app').textContent = `Guitarhero konnte nicht starten: ${err.message}`;
