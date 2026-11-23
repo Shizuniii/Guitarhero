@@ -1,6 +1,7 @@
 // Gemeinsamer App-Zustand: Einstellungen und die gespeicherten Sammlungen.
 import { createStore, uid } from './core.js';
 import { dbAll, dbDelete, dbGet, dbPut } from './db.js';
+import { LP_DEFAULT } from './lernplan.js';
 import { seedData, testPlan } from './seed.js';
 
 export const DEFAULT_SETTINGS = {
@@ -22,6 +23,8 @@ export const DEFAULT_SETTINGS = {
   seedVersion: 0,
   guitar: 'nylon',
   latencyMs: null,
+  // Fortschritt im Lernplan (Lektionen, Prüfpunkte, erledigte Einheiten). Liegt hier, damit die Sicherung ihn enthält.
+  lernplan: LP_DEFAULT,
 };
 
 export const settings = createStore(DEFAULT_SETTINGS);

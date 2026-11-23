@@ -681,3 +681,108 @@ kbd { font: 600 14.5px var(--ui); padding: 2px 7px; border: 1px solid var(--line
 .sc-row.muted > span { font-size: 15px; grid-column: 2 / 4; }
 .cal-count { font: 800 34px/1.1 var(--display); }
 .bar-warning { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+
+.step-hint { display: flex; flex-direction: column; gap: 6px; }
+.step-hint p { margin: 0; }
+.step-link { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; align-self: flex-start; }
+
+/* Lernplan: aufgebaut wie ein Übungsbuch. Reiter oben, Heute mit Ablauf, Stufen mit Prüfpunkten, Kursliste. */
+.lp-page { gap: 26px; }
+.lp-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.lp-head p { margin-top: 6px; }
+.lp-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.lp-tabs a { padding: 7px 16px; border-radius: 999px; color: var(--ink-soft); font-weight: 700; text-decoration: none; }
+.lp-tabs a:hover { color: var(--ink); background: var(--wood-raise); }
+.lp-tabs a[aria-current='page'] { background: var(--ink); color: var(--on-ink); }
+.lp-panel { background: var(--wood-raise); border: 1px solid var(--line-soft); border-radius: 10px; padding: 18px 20px; }
+.lp-panel h3 { margin: 0 0 8px; }
+.lp-hero { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 18px; align-items: start; }
+.lp-today { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.lp-today h2 { margin: 0; }
+.lp-date { color: var(--ink-soft); font-style: italic; }
+.lp-big { font: 800 64px/1 var(--display); font-variant-numeric: tabular-nums; }
+.lp-segbar { display: flex; gap: 2px; height: 10px; border-radius: 999px; overflow: hidden; margin: 4px 0 12px; }
+.lp-segbar i { display: block; min-width: 4px; background: var(--line); }
+.lp-segbar i.k-chord { background: var(--accent); }
+.lp-segbar i.k-change { background: var(--ink-soft); }
+.lp-segbar i.k-strum { background: var(--warn); }
+.lp-segbar i.k-riff { background: var(--good); }
+.lp-segbar i.k-timer { background: var(--line); }
+.lp-seglist { display: flex; flex-direction: column; }
+.lp-seglist li { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line-soft); }
+.lp-seglist li:last-child { border-bottom: 0; }
+.lp-seglist a { color: var(--ink); text-decoration: none; }
+.lp-seglist a:hover b { color: var(--accent-ink); }
+.lp-what { display: flex; flex-direction: column; }
+.lp-what small { color: var(--ink-soft); font-size: 14px; }
+.lp-min { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+.lp-src { display: inline-block; padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
+.lp-src.own { border-color: var(--accent); color: var(--accent-ink); }
+.lp-lesson { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.lp-lesson h3 { margin: 2px 0 4px; font: 700 26px/1.1 var(--display); }
+.lp-kicker { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; }
+.lp-week { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.lp-week div { display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid var(--line-soft); border-radius: 8px; font-size: 13.5px; color: var(--ink-soft); }
+.lp-week b { color: var(--ink); font-size: 15px; }
+
+.lp-stage { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--wood-raise); }
+.lp-stage.cur { border-color: var(--accent); }
+.lp-stage > summary { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 18px; cursor: pointer; list-style: none; }
+.lp-stage > summary::-webkit-details-marker { display: none; }
+.lp-num { font: 800 44px/1 var(--display); color: var(--accent-ink); text-align: center; }
+.lp-stage-t { display: flex; flex-direction: column; }
+.lp-stage-t small { color: var(--ink-soft); }
+.lp-pills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.lp-pill { padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--wood); color: var(--ink-soft); white-space: nowrap; }
+.lp-pill.a { background: var(--accent); color: var(--on-ink); }
+.lp-pill.g { background: var(--good); color: var(--on-state); }
+.lp-stage-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; padding: 4px 18px 18px; border-top: 1px dashed var(--line-soft); }
+.lp-stage-body h4 { margin: 14px 0 6px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.lp-checks { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.lp-checks label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.lp-checks input { width: 19px; height: 19px; margin-top: 3px; flex: none; accent-color: var(--accent); }
+.lp-checks small { display: block; color: var(--ink-soft); font-size: 14px; }
+.lp-checks li.pass > label > span { color: var(--ink-soft); }
+.lp-good { color: var(--good) !important; font-weight: 600; }
+.lp-count { margin: 6px 0 0 29px; }
+.lp-parts { display: flex; flex-direction: column; }
+.lp-parts li { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: 15.5px; }
+.lp-ref { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; color: var(--ink-soft); font-size: 15px; }
+.lp-select { min-height: 42px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--wood); color: var(--ink); font: inherit; align-self: flex-start; }
+.lp-cov { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+.lp-cov h4 { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.lp-cov li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--line-soft); font-size: 15px; font-variant-numeric: tabular-nums; }
+.lp-cov li.zero b { color: var(--bad); }
+.lp-rules { display: flex; flex-direction: column; gap: 8px; list-style: decimal; padding-left: 1.3em; }
+
+.lp-kurs { display: flex; flex-direction: column; gap: 8px; }
+.lp-kurs-h { display: flex; gap: 14px; align-items: center; }
+.lp-kurs-h h3 { margin: 0; font: 700 26px/1.1 var(--display); }
+.lp-lessons li { display: grid; grid-template-columns: auto 2.6rem minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 8px; }
+.lp-lessons li:hover { background: var(--wood-raise); }
+.lp-lessons li.next { background: var(--wood-raise); box-shadow: inset 3px 0 0 var(--accent); }
+.lp-lessons input { width: 19px; height: 19px; accent-color: var(--accent); }
+.lp-n, .lp-dur { font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.lp-ti { display: flex; flex-direction: column; }
+.lp-ti small { color: var(--ink-soft); font-size: 14px; }
+.lp-lessons li.done .lp-ti b { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--line); }
+.lp-lessons a { white-space: nowrap; font-weight: 600; }
+
+@media (max-width: 1100px) {
+  .lp-hero, .lp-stage-body { grid-template-columns: minmax(0, 1fr); }
+  .lp-week { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .lp-week { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lp-stage > summary { grid-template-columns: 2.4rem minmax(0, 1fr); }
+  .lp-pills { grid-column: 1 / -1; justify-content: flex-start; }
+  .lp-big { font-size: 52px; }
+  .lp-lessons li { grid-template-columns: auto 2.2rem minmax(0, 1fr); }
+  .lp-lessons .lp-dur, .lp-lessons a { grid-column: 3; }
+}
+.lp-lesson { flex-direction: column; align-items: flex-start; }
+.lp-select { width: auto; min-width: 220px; }
+@media (max-width: 860px) {
+  .lp-seglist li, .lp-parts li { grid-template-columns: 3.8rem minmax(0, 1fr); }
+  .lp-seglist .lp-src, .lp-parts .lp-src { grid-column: 2; justify-self: start; }
+}

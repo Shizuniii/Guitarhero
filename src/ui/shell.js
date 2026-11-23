@@ -13,6 +13,7 @@ import { TunerFace } from './tuner.js';
 
 const NAV = [
   { path: '', match: ['', 'plan', 'frei'], label: 'Üben', icon: 'practice' },
+  { path: 'lernplan', match: ['lernplan'], label: 'Lernplan', icon: 'course' },
   { path: 'akkorde', match: ['akkorde'], label: 'Akkorde', icon: 'chord' },
   { path: 'strums', match: ['strums'], label: 'Strums', icon: 'strum' },
   { path: 'riffs', match: ['riffs'], label: 'Riffs', icon: 'riff' },
