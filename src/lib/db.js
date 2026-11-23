@@ -17,8 +17,10 @@ function open() {
         }
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => { globalThis.__ghDbOpen = true; resolve(req.result); };
     req.onerror = () => reject(req.error);
+    // Für die Rettung in index.html: ein anderes Fenster hält die Datenbank fest
+    req.onblocked = () => { globalThis.__ghDbBlocked = true; };
   });
   return dbPromise;
 }

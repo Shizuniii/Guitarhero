@@ -584,6 +584,9 @@ kbd { font: 600 14.5px var(--ui); padding: 2px 7px; border: 1px solid var(--line
 .modal-head h2 { margin: 0; }
 .modal-body { padding: 8px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
 .notice { padding: 10px 12px; border-left: 3px solid var(--warn); background: var(--wood-raise); max-width: 760px; }
+.crash { display: flex; flex-direction: column; gap: 10px; max-width: 760px; margin: 24px auto; padding: 18px 20px; border-left: 3px solid var(--bad); background: var(--wood-raise); border-radius: var(--r-m); }
+.crash h2 { margin: 0; }
+.crash p { margin: 0; }
 .empty { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 26px 0; }
 .empty h3 { font: 700 28px/1.1 var(--display); margin: 0; }
 .done-page { align-items: flex-start; padding-top: 80px; }
