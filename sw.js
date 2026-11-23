@@ -1,5 +1,5 @@
 // Macht Guitarhero offline nutzbar. Wird von tools/build-sw.mjs erzeugt.
-const VERSION = 'guitarhero-3a62438d63';
+const VERSION = 'guitarhero-c047910748';
 const FILES = [
   "./",
   "css/app.css",
@@ -78,7 +78,11 @@ const FILES = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' holt jede Datei frisch vom Server. Ohne das kann der Browser beim Update Dateien aus
+  // seinem normalen Zwischenspeicher nehmen (GitHub Pages: 10 Minuten). Dann landen alte und neue Dateien
+  // gemischt in der neuen Version, und die App bleibt beim Start leer.
+  const fresh = FILES.map((f) => new Request(f, { cache: 'reload' }));
+  event.waitUntil(caches.open(VERSION).then((c) => c.addAll(fresh)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {

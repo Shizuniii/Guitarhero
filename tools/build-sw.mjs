@@ -16,6 +16,8 @@ include.forEach((f) => walk(join(root, f)));
 
 const hash = createHash('sha256');
 files.sort().forEach((f) => hash.update(readFileSync(f)));
+// Auch eine Änderung am Service Worker selbst ergibt eine neue Version
+hash.update(readFileSync(join(root, 'sw.template.js')));
 const list = ['./', ...files.map((f) => relative(root, f).split('\\').join('/'))];
 const version = `guitarhero-${hash.digest('hex').slice(0, 10)}`;
 const out = readFileSync(join(root, 'sw.template.js'), 'utf8')
