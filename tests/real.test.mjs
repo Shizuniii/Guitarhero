@@ -50,4 +50,18 @@ for (const name of ['C sauber', 'C mit gedämpfter A-Saite', 'C mit tiefer E-Sai
   failed += pass ? 0 : 1;
   console.log(`${pass ? 'OK  ' : 'FAIL'} ${name} als Am/C: ${r.count} Wechsel (nur C gespielt)`);
 }
+// Wechsel, die sich nur in einer Saite unterscheiden, vergleichen nur diese beiden Töne (D/Dm, A/Am).
+// Gegenprobe mit echten C-Aufnahmen: Ein gedachter Akkord, der statt C4 ein C#4 (wie A/Am) oder statt E4 ein F4
+// (Bereich wie D/Dm) hat, darf nie erkannt werden.
+const fakes = [['C#4 statt C4', chordModel('X1', [-1, 3, 2, 0, 2, 0])], ['F4 statt E4', chordModel('X2', [-1, 3, 2, 0, 1, 1])]];
+for (const name of ['C sauber', 'C mit gedämpfter A-Saite', 'C mit tiefer E-Saite', 'C mit falschem Bund']) {
+  const x = load(name);
+  if (!x) continue;
+  for (const [label, X] of fakes) {
+    const r = analyzeChange(x, SR, C, X);
+    const pass = r.count === 0;
+    failed += pass ? 0 : 1;
+    console.log(`${pass ? 'OK  ' : 'FAIL'} ${name}, gegen C mit ${label}: ${r.count} Wechsel (nur C gespielt)`);
+  }
+}
 assert.equal(failed, 0, `${failed} Fälle falsch`);

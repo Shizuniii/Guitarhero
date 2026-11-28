@@ -29,6 +29,7 @@ export const LP_DEFAULT = {
 
 export const OMC_GOAL = 30;
 export const OPEN_WEIGHT = 3;
+export const OMC_SECONDS = 60;
 export const DAY_SECONDS = 20 * 60;
 const RIFF_SECONDS = 120;
 
@@ -298,10 +299,12 @@ export function buildSession(ctx, { n = 0, mode = 'normal', module: m = currentM
     const c = chordCfg(name);
     return { id: `lp-pc-${name}`, type: 'chord', config: { chord: { name, voicing: c.voicing }, seconds: c.seconds, hint } };
   };
+  // Ein-Minuten-Wechsel dauern im Lernplan immer eine Minute, wie bei Justin. Rekorde aus anderen Dauern
+  // werden auf eine Minute umgerechnet (bestPerMinute), dafür muss die Dauer nicht mehr übernommen werden.
   const omcStep = (p, hint) => ({
     id: `lp-omc-${pairKey(p.a, p.b)}`,
     type: 'change',
-    config: { a: { name: p.a, voicing: p.va }, b: { name: p.b, voicing: p.vb }, seconds: p.seconds, hint },
+    config: { a: { name: p.a, voicing: p.va }, b: { name: p.b, voicing: p.vb }, seconds: OMC_SECONDS, hint },
   });
   const timerStep = (id, label, seconds, extraCfg = {}) => ({ id, type: 'timer', config: { label, seconds, ...extraCfg } });
   const patternName = (id) => patterns.find((p) => p.id === id)?.name || '';

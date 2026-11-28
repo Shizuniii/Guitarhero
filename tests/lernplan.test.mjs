@@ -56,10 +56,7 @@ ok('Finger Stretch zuerst', s0.steps[0].id === 'lp-stretch' && s0.steps[0].confi
 ok('Chord Perfect auf C', s0.steps.some((s) => s.id === 'lp-pc-C'));
 const changes = s0.steps.filter((s) => s.type === 'change');
 ok('Sechs Wechsel, zwei davon mit C', changes.length === 6 && changes.filter((s) => [s.config.a.name, s.config.b.name].includes('C')).length === 2);
-ok('Wechsel behalten die Dauer aus deinem Plan', changes.every((c) => {
-  const orig = steps.find((s) => s.type === 'change' && [s.config.a.name, s.config.b.name].sort().join() === [c.config.a.name, c.config.b.name].sort().join());
-  return orig && orig.config.seconds === c.config.seconds;
-}));
+ok('Wechsel dauern eine Minute, auch wenn dein Plan 55 Sekunden hat', steps.some((s) => s.type === 'change' && s.config.seconds === 55) && changes.every((c) => c.config.seconds === 60));
 ok('Zwei Strums, ein Riff, Song-Arbeit', s0.steps.filter((s) => s.type === 'strum').length === 2 && s0.steps.filter((s) => s.type === 'riff').length === 1 && s0.steps.some((s) => s.id === 'lp-song' && s.config.seconds === 300));
 ok('Song-Arbeit nennt deinen Song, reihum', s0.steps.find((s) => s.id === 'lp-song').config.label === 'Song: Eleanor Rigby' && buildSession(withSongs, { n: 1 }).steps.find((s) => s.id === 'lp-song').config.label === 'Song: Get Lucky');
 

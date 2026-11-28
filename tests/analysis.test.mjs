@@ -91,6 +91,36 @@ let liveN = 0;
 for (let i = 0; i < bodyC.length; i += 2048) liveN = liveBody.push(bodyC.subarray(i, Math.min(bodyC.length, i + 2048)));
 check('Nur C mit Korpus-Mitschwingen: live kein Wechsel', liveN === 0, `live=${liveN}`);
 
+// 10a''. Akkorde, die sich nur in einer Saite unterscheiden (D/Dm: F#4 gegen F4, A/Am: C#4 gegen C4).
+// Bei echten Gitarren ist die hohe Saite oft leiser und die Gitarre leicht verstimmt. Früher wurde dann
+// bei D/Dm gar kein Wechsel gezählt.
+{
+  let sd = 7;
+  const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const oneString = (A, B, treble, detune, same = false) => take((x) => {
+    for (let k = 0; k <= 20; k++) {
+      const ch = same || k % 2 === 0 ? A : B;
+      mid(ch).sort((p, q) => p - q).forEach((m, i) => strumChord(x, [m], 0.5 + k * 2 + i * 0.012, {
+        seed: k * 11 + i, dur: 0.8, gain: 0.25 * (m >= 64 ? treble : m >= 59 ? Math.sqrt(treble) : 1), cents: [(rnd() * 2 - 1) * detune],
+      }));
+    }
+  }, 44);
+  const Dm = chordModel('Dm', [-1, -1, 0, 2, 3, 1]);
+  const Am2 = chordModel('Am', [-1, 0, 2, 2, 1, 0]);
+  for (const [P, Q] of [[D, Dm], [chordModel('A', [-1, 0, 2, 2, 2, 0]), Am2]]) {
+    for (const [treble, detune] of [[1, 0], [0.3, 0], [0.3, 25]]) {
+      r = analyzeChange(oneString(P, Q, treble, detune), SR, P, Q);
+      const lc = new LiveChangeCounter(P, Q, SR);
+      const x = oneString(P, Q, treble, detune);
+      let ln = 0;
+      for (let i = 0; i < x.length; i += 2048) ln = lc.push(x.subarray(i, Math.min(x.length, i + 2048)));
+      check(`${P.name}/${Q.name}, hohe Saiten ${treble === 1 ? 'normal' : 'leise'}${detune ? ', verstimmt' : ''}: mindestens 17 von 20`, r.count >= 17 && ln >= 17, `offline=${r.count} live=${ln}`);
+    }
+    r = analyzeChange(oneString(P, Q, 0.3, 25, true), SR, P, Q);
+    check(`Nur ${P.name} gespielt, als ${P.name}/${Q.name}: kein Wechsel`, r.count === 0, `count=${r.count}`);
+  }
+}
+
 // 10b. Wechsel E/A: Die leere tiefe E-Saite des E-Akkords klingt beim A nach. Das ist kein Fehler, nur ein Hinweis.
 const E = chordModel('E', [0, 2, 2, 1, 0, 0]);
 const A = chordModel('A', [-1, 0, 2, 2, 2, 0]);
