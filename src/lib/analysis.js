@@ -266,7 +266,49 @@ export function changeModel(a, b) {
     onlyA = [...am].filter((m) => !bp.has(m % 12));
     onlyB = [...bm].filter((m) => !ap.has(m % 12));
   }
-  return { a, b, onlyA: onlyA.filter(inRange), onlyB: onlyB.filter(inRange), fit: new Map() };
+  return { a, b, onlyA: onlyA.filter(inRange), onlyB: onlyB.filter(inRange), fit: new Map(), pair: singleNotePair(am, bm) };
+}
+
+// Unterscheiden sich zwei Akkorde nur in einer Saite (D/Dm, A/Am, E/Em), ist der Unterschied im ganzen
+// Akkord klein: Schon eine leisere hohe Saite oder eine leicht verstimmte Gitarre reicht, und der Vergleich
+// ganzer Akkorde entscheidet sich nicht mehr. Dann werden direkt die beiden Töne verglichen, in denen sich
+// die Akkorde unterscheiden (F#4 gegen F4 bei D/Dm). Ihre Fenster sind ±1/3 Halbton breit, so bleibt
+// die Entscheidung auch bei verstimmten Saiten richtig.
+function singleNotePair(am, bm) {
+  const onlyA = [...am].filter((m) => !bm.has(m));
+  const onlyB = [...bm].filter((m) => !am.has(m));
+  if (onlyA.length !== 1 || onlyB.length !== 1) return null;
+  const [ma] = onlyA;
+  const [mb] = onlyB;
+  // Erst ab C4 (262 Hz): Darunter, um die G-Saite, liegen bei echten Aufnahmen Obertöne von Korpus und Raum,
+  // die mit einem nicht gespielten Ton verwechselt werden (an Shys C-Aufnahmen geprüft). E/Em bleibt deshalb beim Akkordvergleich.
+  if (Math.min(ma, mb) < 60 || !inRange(ma) || !inRange(mb)) return null;
+  // Obertöne der gemeinsamen Töne dürfen nicht auf einem der beiden Töne liegen
+  const shared = [...am].filter((m) => bm.has(m));
+  const hits = (target) => shared.some((m) => {
+    for (let h = 2; h <= 8; h++) if (Math.abs(m + 12 * Math.log2(h) - target) < 0.5) return true;
+    return false;
+  });
+  if (hits(ma) || hits(mb)) return null;
+  return { a: ma, b: mb };
+}
+
+const PAIR_CONTRAST = 0.3;
+const PAIR_FLOOR = 0.02;
+function noteEnergy(ls, midi) {
+  const pos = Math.round((midi - LS_LO) * LS_BPS);
+  let e = 0;
+  for (let b = pos - 1; b <= pos + 1; b++) if (b >= 0 && b < LS_BINS) e += ls[b];
+  return e;
+}
+// +1: klar Akkord a, -1: klar Akkord b, null: keiner der beiden Töne deutlich zu hören
+export function pairContrast(ls, pair) {
+  const ea = noteEnergy(ls, pair.a);
+  const eb = noteEnergy(ls, pair.b);
+  let peak = 0;
+  for (let i = 0; i < LS_BINS; i++) if (ls[i] > peak) peak = ls[i];
+  if (Math.max(ea, eb) < PAIR_FLOOR * 3 * peak) return null;
+  return (ea - eb) / (ea + eb + 1e-12);
 }
 
 // Welcher der beiden Akkorde erklärt das Spektrum besser? Jeder Akkord wird mit allen seinen Tönen samt
@@ -328,6 +370,10 @@ export function chordLean(ls, model, set) {
 }
 export const CHANGE_LEAN = 0.05;
 export function leanLabel(ls, model, set, thr = CHANGE_LEAN) {
+  if (model.pair) {
+    const c = pairContrast(ls, model.pair);
+    return c === null ? null : c > PAIR_CONTRAST ? 'a' : c < -PAIR_CONTRAST ? 'b' : null;
+  }
   const r = chordLean(ls, model, set);
   return r > thr ? 'a' : r < -thr ? 'b' : null;
 }
